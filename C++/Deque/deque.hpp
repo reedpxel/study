@@ -29,7 +29,7 @@ protected:
         friend class deque;
     public:
         using difference_type = int64_t;
-        using value_type = std::conditional<IsConst, const T, T>;
+        using value_type = std::conditional_t<IsConst, const T, T>;
         using pointer = std::conditional_t<IsConst, const T*, T*>;
         using reference = std::conditional_t<IsConst, const T&, T&>;
         using iterator_category = std::random_access_iterator_tag;
