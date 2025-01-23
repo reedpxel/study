@@ -10,5 +10,7 @@ add_link_options(-fsanitize=address)
 
 add_executable(unordered_map
                unordered_map.hpp
+               hash_functor.hpp
+               equal_functor.hpp
                main.cpp) 
 

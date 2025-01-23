@@ -4,9 +4,6 @@
 
 int main()
 {
-    [[maybe_unused]] unordered_map<int, int> uMap;
-    std::cout << "works\n";
-    int* ptr = new int(123);
-    std::cout << ptr << std::endl;
-    delete ptr;
+    unordered_map<int, int> map_;
+    map_.insert(std::make_pair(1, 1));
 }
