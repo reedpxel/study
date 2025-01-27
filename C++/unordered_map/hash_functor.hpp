@@ -53,6 +53,27 @@ struct HashFunctor<uint8_t>
 };
 
 template <>
+struct HashFunctor<float>
+{
+    uint64_t operator()(float value) { return static_cast<uint64_t>(value); }
+};
+
+template <>
+struct HashFunctor<double>
+{
+    uint64_t operator()(double value) { return static_cast<uint64_t>(value); }
+};
+
+template <>
+struct HashFunctor<long double>
+{
+    uint64_t operator()(long double value) 
+    { 
+        return static_cast<uint64_t>(value); 
+    }
+};
+
+template <>
 struct HashFunctor<std::string>
 {
     uint64_t operator()(const std::string& value)

@@ -6,6 +6,7 @@
 
 #include "hash_functor.hpp"
 #include "equal_functor.hpp"
+#include <iostream> // TO DO: remove
 
 // TO DO: set public to private/protected where needed
 
@@ -95,6 +96,7 @@ template <
         BaseIterator& operator++() noexcept
         {
             nodePtr = nodePtr->next;
+            return *this;
         }
 
         BaseIterator operator++(int) noexcept
@@ -118,7 +120,7 @@ template <
         {
             return BaseIterator<true>(nodePtr);
         }
-    private:
+    public: // TO DO: set private
         BaseNode* nodePtr; 
     };
 
@@ -150,6 +152,7 @@ public:
             , arrSz(countArrSize(0))
             , arr(ArrAllocTraits::allocate(arrAlloc, arrSz))
             , sz(0)
+            , maxLoadFactor(1)
             , fakeNode(nullptr)
     {}
 
@@ -168,9 +171,39 @@ public:
             }
             fakeNode.next = newNode;
             arr[newNode->hash % arrSz] = static_cast<Node*>(&fakeNode);
+            ++sz;
             return make_pair(iterator(newNode), true);
         }
-        return make_pair(iterator(nullptr), false);
+        uint64_t hashValue = hash_(value.first);
+        Node* line = arr[hashValue % arrSz];
+        line = (isNullptr(line) ? 
+            reinterpret_cast<Node*>(&fakeNode) : 
+            static_cast<Node*>(line->next));
+        bool keyFound = false;
+        for (; static_cast<BaseNode*>(line) != &fakeNode && 
+                line->hash % arrSz == hashValue % arrSz; 
+            line = static_cast<Node*>(line->next))
+        {
+            if (equal_(line->kv.first, value.first))
+            {
+                keyFound = true;
+                break;
+            }
+        }
+        if (keyFound) return make_pair(iterator(line), false);
+        if ((sz + 1) / arrSz >= maxLoadFactor) rehash(arrSz);
+        Node* newNode = NodeAllocTraits::allocate(nodeAlloc, 1);
+        try
+        {
+            NodeAllocTraits::construct(nodeAlloc, newNode, 
+                Node(nullptr, value, hashValue));
+        } catch (...) {
+            NodeAllocTraits::deallocate(nodeAlloc, newNode, 1);
+            throw;
+        }
+        insertConstructedNode(newNode);
+        ++sz;
+        return make_pair(iterator(newNode), true);
     }
 
 //    std::pair<iterator, bool> insert([[maybe_unused]] value_type&& value)
@@ -180,27 +213,105 @@ public:
 
     ~unordered_map()
     {
-        
+        ArrAllocTraits::deallocate(arrAlloc, arr, arrSz);
+        if (!sz) return;
+        for (Node* begin_ = static_cast<Node*>(fakeNode.next); 
+            static_cast<BaseNode*>(begin_) != &fakeNode; )
+        {
+            Node* afterBegin = static_cast<Node*>(begin_->next);
+            NodeAllocTraits::destroy(nodeAlloc, begin_);
+            NodeAllocTraits::deallocate(nodeAlloc, begin_, 1);
+            begin_ = afterBegin;
+        }
     }
+
+    iterator find(const Key& key_)
+    {
+        uint64_t hashValue = hash_(key_);
+        Node* line = arr[hashValue % arrSz];
+        if (isNullptr(line)) return end();
+        bool keyFound = false;
+        for (line = static_cast<Node*>(line->next); 
+            static_cast<BaseNode*>(line) != &fakeNode && 
+                line->hash == hashValue; 
+            line = static_cast<Node*>(line->next))
+        {
+            if (line->kv.first == key_)
+            {
+                keyFound = true;
+                break;
+            }
+        }
+        return keyFound ? iterator(line) : end();
+    }
+
+    const_iterator find(const Key& key_) const
+    {
+        return const_iterator(nullptr);
+    }
+
+    iterator erase(iterator pos)
+    {
+        return iterator(nullptr);
+    }
+
+    iterator erase(const_iterator pos)
+    {
+        return iterator(nullptr);
+    }
+
+    iterator begin() noexcept { return iterator(fakeNode.next); }
+    iterator end() noexcept { return iterator(&fakeNode); }
+    const_iterator begin() const noexcept { return iterator(fakeNode.next); }
+    const_iterator end() const noexcept { return iterator(&fakeNode); }
+    const_iterator cbegin() const noexcept { return iterator(fakeNode.next); }
+    const_iterator cend() const noexcept { return iterator(&fakeNode); }
 
     void reserve(size_t count)
     {
 
     }
 
+    void rehash(size_t newBucketCount)
+    {
+        if (sz / newBucketCount >= maxLoadFactor) return;
+        Node** newArr = ArrAllocTraits::allocate(arrAlloc, newBucketCount);
+        for (Node* begin_ = static_cast<Node*>(fakeNode.next);
+            static_cast<BaseNode*>(begin_) != &fakeNode; begin_ = begin_->next)
+        {
+            // ???
+        }
+    }
 
-//    size_t bucket_count();
-//
-//    double load_factor() const { return ???; } // отношение колва ключей к
-//                                               // размеру массива
-//    double get_max_load_factor() const { return ???; } // число, при превышении
-//                                                   // которого делается rehash
-//    void set_max_load_factor();
+    size_t size() const noexcept { return sz; }
+    size_t bucket_count() const noexcept { return arrSz; }
+    double load_factor() const noexcept { return sz / arrSz; }                                                      // размеру массива
+    double max_load_factor() const noexcept { return maxLoadFactor; } 
+
+    void set_max_load_factor(size_t newMaxLoadFactor) noexcept
+    {
+        maxLoadFactor = newMaxLoadFactor;
+    }
 private:
     size_t countArrSize(size_t oldArrSize) const noexcept
     {
         if (!oldArrSize) return 7;
         return 4 * oldArrSize - 1;
+    }
+
+    void insertConstructedNode(Node* constructedNode) noexcept
+    {
+        if (isNullptr(arr[constructedNode->hash % arrSz]))
+        {
+            constructedNode->next = fakeNode.next;
+            arr[static_cast<Node*>(fakeNode.next)->hash % arrSz] = 
+                constructedNode;
+            arr[constructedNode->hash % arrSz] = static_cast<Node*>(&fakeNode);
+            fakeNode.next = constructedNode;
+        } else {
+            constructedNode->next = arr[constructedNode->hash % arrSz]->next;
+            arr[constructedNode->hash % arrSz]->next = constructedNode;
+        }
     }
 
 public:
@@ -209,6 +320,8 @@ public:
     size_t arrSz;
     Node** arr;
     size_t sz;
+    double maxLoadFactor; // если load_factor() превышает это число, делается
+                          // rehash
     BaseNode fakeNode;
     Hash hash_;
     KeyEqual equal_;
