@@ -24,11 +24,16 @@
 int main()
 {
     unordered_map<int, std::string> map_;
-    for (int i = 0; i < 10000; ++i) map_.insert(make_pair(i, "adsf"));
-    for (int i = 0; i < 10000; ++i) map_.insert(make_pair(i, "adsf"));
-    for (int i = 0; i < 10000; ++i) map_.insert(make_pair(i, "adsf"));
-    for (int i = 0; i < 10000; ++i) map_.insert(make_pair(i, "adsf"));
-    for (int i = 0; i < 10000; ++i) map_.insert(make_pair(i, "adsf"));
-    std::cout << map_.size() << std::endl;
+    for (int i = 0; i < 1000; ++i) 
+    {
+        map_.insert(make_pair(i, "adsf"));
+    }
+    for (int i = 0; i < 1000; ++i)
+    {
+        map_.erase(map_.find(i));
+    }
+    for (auto& pair_ : map_) std::cout << pair_.first << ' ';
+    std::cout << std::endl;
+    std::cout << sizeof(unordered_map<int, std::string>);
 }
 // sizeof(std::unordered_map) == 56

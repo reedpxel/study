@@ -44,6 +44,7 @@ template <
     typename Alloc = std::allocator<pair<const Key, Value>>
 > class unordered_map
 {
+public: // TO DO: remove
     struct BaseNode
     {
         BaseNode* next;
@@ -191,7 +192,7 @@ public:
             }
         }
         if (keyFound) return make_pair(iterator(line), false);
-        if ((sz + 1) / arrSz >= maxLoadFactor) rehash(arrSz);
+        if ((sz + 1) / arrSz >= maxLoadFactor) rehash(countArrSize(arrSz));
         Node* newNode = NodeAllocTraits::allocate(nodeAlloc, 1);
         try
         {
@@ -201,7 +202,7 @@ public:
             NodeAllocTraits::deallocate(nodeAlloc, newNode, 1);
             throw;
         }
-        insertConstructedNode(newNode);
+        insertConstructedNode(newNode, arr, arrSz);
         ++sz;
         return make_pair(iterator(newNode), true);
     }
@@ -252,7 +253,21 @@ public:
 
     iterator erase(iterator pos)
     {
-        return iterator(nullptr);
+        Node* prev = arr[static_cast<Node*>(pos.nodePtr)->hash % arrSz];
+        for (; static_cast<Node*>(prev->next) != 
+            pos.nodePtr; prev = static_cast<Node*>(prev->next));
+        if (static_cast<BaseNode*>(arr[static_cast<Node*>(pos.nodePtr->next)->
+            hash % arrSz]) == pos.nodePtr)
+        {
+            arr[static_cast<Node*>(pos.nodePtr->next)->hash % arrSz] = 
+                static_cast<Node*>(pos.nodePtr)->hash == 
+                static_cast<Node*>(pos.nodePtr->next)->hash ? prev : nullptr;
+        }
+        prev->next = pos.nodePtr->next;
+        NodeAllocTraits::destroy(nodeAlloc, pos.nodePtr);
+        NodeAllocTraits::deallocate(nodeAlloc, static_cast<Node*>(pos.nodePtr),
+            1);
+        return iterator(prev->next);
     }
 
     iterator erase(const_iterator pos)
@@ -274,13 +289,27 @@ public:
 
     void rehash(size_t newBucketCount)
     {
+        if (!sz || !newBucketCount) return;
         if (sz / newBucketCount >= maxLoadFactor) return;
         Node** newArr = ArrAllocTraits::allocate(arrAlloc, newBucketCount);
-        for (Node* begin_ = static_cast<Node*>(fakeNode.next);
-            static_cast<BaseNode*>(begin_) != &fakeNode; begin_ = begin_->next)
+        for (Node* node = static_cast<Node*>(fakeNode.next);
+            static_cast<BaseNode*>(node) != &fakeNode;)
         {
-            // ???
+            Node* nextNode = static_cast<Node*>(node->next);
+            if (iterator(node) == begin()) [[unlikely]]
+            {
+                node->next = &fakeNode;
+                newArr[node->hash % newBucketCount] = 
+                    static_cast<Node*>(&fakeNode);
+                fakeNode.next = node;
+            } else {
+                insertConstructedNode(node, newArr, newBucketCount);
+            }
+            node = nextNode;
         }
+        ArrAllocTraits::deallocate(arrAlloc, arr, arrSz);
+        arr = newArr;
+        arrSz = newBucketCount;
     }
 
     size_t size() const noexcept { return sz; }
@@ -292,39 +321,42 @@ public:
     {
         maxLoadFactor = newMaxLoadFactor;
     }
-private:
+public: // TO DO: remove
     size_t countArrSize(size_t oldArrSize) const noexcept
     {
         if (!oldArrSize) return 7;
         return 4 * oldArrSize - 1;
     }
 
-    void insertConstructedNode(Node* constructedNode) noexcept
+    void insertConstructedNode(Node* constructedNode, 
+        Node** arr_, size_t arrSz_) noexcept
     {
-        if (isNullptr(arr[constructedNode->hash % arrSz]))
+        if (isNullptr(arr_[constructedNode->hash % arrSz_]))
         {
             constructedNode->next = fakeNode.next;
-            arr[static_cast<Node*>(fakeNode.next)->hash % arrSz] = 
+            arr_[static_cast<Node*>(fakeNode.next)->hash % arrSz_] = 
                 constructedNode;
-            arr[constructedNode->hash % arrSz] = static_cast<Node*>(&fakeNode);
+            arr_[constructedNode->hash % arrSz_] = 
+                static_cast<Node*>(&fakeNode);
             fakeNode.next = constructedNode;
         } else {
-            constructedNode->next = arr[constructedNode->hash % arrSz]->next;
-            arr[constructedNode->hash % arrSz]->next = constructedNode;
+            constructedNode->next = 
+                arr_[constructedNode->hash % arrSz_]->next;
+            arr_[constructedNode->hash % arrSz_]->next = constructedNode;
         }
     }
 
 public:
-    ArrAlloc arrAlloc;
-    NodeAlloc nodeAlloc;
+    [[no_unique_address]] ArrAlloc arrAlloc;
+    [[no_unique_address]] NodeAlloc nodeAlloc;
     size_t arrSz;
     Node** arr;
     size_t sz;
     double maxLoadFactor; // если load_factor() превышает это число, делается
                           // rehash
     BaseNode fakeNode;
-    Hash hash_;
-    KeyEqual equal_;
+    [[no_unique_address]] Hash hash_;
+    [[no_unique_address]] KeyEqual equal_;
 };
 
 #endif
