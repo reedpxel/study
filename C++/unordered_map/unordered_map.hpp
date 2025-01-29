@@ -23,8 +23,6 @@ bool isNullptr(T* ptr)
 using std::pair;
 using std::make_pair;
 
-// When unordered_map rehashes itself? 
-
 // указатели и ссылки на эл-ты в unordered_map не инвалидируются при insert и
 // erase. Итераторы инвалидируются согласно стандарту, но никто не знает почему.
 
@@ -155,7 +153,9 @@ public:
             , sz(0)
             , maxLoadFactor(1)
             , fakeNode(nullptr)
-    {}
+    {
+        fakeNode.next = &fakeNode;
+    }
 
     std::pair<iterator, bool> insert(const value_type& value)
     {
@@ -231,11 +231,10 @@ public:
         uint64_t hashValue = hash_(key_);
         Node* line = arr[hashValue % arrSz];
         if (isNullptr(line)) return end();
+        line = static_cast<Node*>(line->next);
         bool keyFound = false;
-        for (line = static_cast<Node*>(line->next); 
-            static_cast<BaseNode*>(line) != &fakeNode && 
-                line->hash == hashValue; 
-            line = static_cast<Node*>(line->next))
+        for (; static_cast<BaseNode*>(line) != &fakeNode && line->hash % arrSz 
+                == hashValue % arrSz; line = static_cast<Node*>(line->next))
         {
             if (line->kv.first == key_)
             {
@@ -251,22 +250,34 @@ public:
         return const_iterator(nullptr);
     }
 
-    iterator erase(iterator pos)
+    iterator erase(iterator pos) noexcept
     {
-        Node* prev = arr[static_cast<Node*>(pos.nodePtr)->hash % arrSz];
-        for (; static_cast<Node*>(prev->next) != 
-            pos.nodePtr; prev = static_cast<Node*>(prev->next));
-        if (static_cast<BaseNode*>(arr[static_cast<Node*>(pos.nodePtr->next)->
-            hash % arrSz]) == pos.nodePtr)
+        BaseNode* prev = arr[static_cast<Node*>(pos.nodePtr)->hash % arrSz];
+        for (; prev->next != pos.nodePtr; prev = prev->next);
+        if (pos.nodePtr->next == &fakeNode || static_cast<Node*>(pos.nodePtr)->
+            hash % arrSz != static_cast<Node*>(pos.nodePtr->next)->hash % 
+            arrSz) // is pos.nodePtr last node in hash line
         {
-            arr[static_cast<Node*>(pos.nodePtr->next)->hash % arrSz] = 
-                static_cast<Node*>(pos.nodePtr)->hash == 
-                static_cast<Node*>(pos.nodePtr->next)->hash ? prev : nullptr;
+            if (prev == &fakeNode || static_cast<Node*>(prev)->hash % arrSz != 
+                static_cast<Node*>(pos.nodePtr)->hash % arrSz)
+            // is pos.nodePtr the only node in hash line
+            {
+                arr[static_cast<Node*>(pos.nodePtr)->hash % arrSz] = nullptr;
+                if (pos.nodePtr->next != &fakeNode)
+                {
+                    arr[static_cast<Node*>(pos.nodePtr->next)->hash % arrSz] = 
+                        static_cast<Node*>(prev);
+                }
+            } else if (pos.nodePtr->next != &fakeNode) {
+                arr[static_cast<Node*>(pos.nodePtr->next)->hash % arrSz] = 
+                    static_cast<Node*>(prev);
+            }
         }
         prev->next = pos.nodePtr->next;
-        NodeAllocTraits::destroy(nodeAlloc, pos.nodePtr);
+        NodeAllocTraits::destroy(nodeAlloc, static_cast<Node*>(pos.nodePtr));
         NodeAllocTraits::deallocate(nodeAlloc, static_cast<Node*>(pos.nodePtr),
             1);
+        --sz;
         return iterator(prev->next);
     }
 
@@ -281,6 +292,7 @@ public:
     const_iterator end() const noexcept { return iterator(&fakeNode); }
     const_iterator cbegin() const noexcept { return iterator(fakeNode.next); }
     const_iterator cend() const noexcept { return iterator(&fakeNode); }
+
 
     void reserve(size_t count)
     {
@@ -312,15 +324,37 @@ public:
         arrSz = newBucketCount;
     }
 
+    bool empty() const noexcept { return !sz; }
     size_t size() const noexcept { return sz; }
     size_t bucket_count() const noexcept { return arrSz; }
-    double load_factor() const noexcept { return sz / arrSz; }                                                      // размеру массива
+    double load_factor() const noexcept { return sz / arrSz; } 
     double max_load_factor() const noexcept { return maxLoadFactor; } 
+//    size_t bucket(const Key& key_) const noexcept
+//    {
+//    }
 
     void set_max_load_factor(size_t newMaxLoadFactor) noexcept
     {
         maxLoadFactor = newMaxLoadFactor;
     }
+
+    Alloc get_allocator() const noexcept { return 
+
+    void print() noexcept
+    {
+        std::cout << "arrSz: " << arrSz << std::endl << "arr:\n";
+        for (size_t i = 0; i < arrSz; ++i) std::cout << i << ' ' << arr[i] << 
+            std::endl;
+        std::cout << std::endl << "nodes:\n";
+        for (iterator it = begin(); it != end(); ++it)
+        {
+            std::cout << it.nodePtr << ' ' << it.nodePtr->next << ' ' <<
+                it->first << ' ' << it->second << ' ' << static_cast<Node*>(
+                it.nodePtr)->hash % arrSz << std::endl;
+        }
+        std::cout << "fakeNode: " << &fakeNode << ' ' << fakeNode.next << 
+            std::endl;
+    };
 public: // TO DO: remove
     size_t countArrSize(size_t oldArrSize) const noexcept
     {
@@ -347,8 +381,8 @@ public: // TO DO: remove
     }
 
 public:
-    [[no_unique_address]] ArrAlloc arrAlloc;
-    [[no_unique_address]] NodeAlloc nodeAlloc;
+    ArrAlloc arrAlloc;
+    NodeAlloc nodeAlloc;
     size_t arrSz;
     Node** arr;
     size_t sz;

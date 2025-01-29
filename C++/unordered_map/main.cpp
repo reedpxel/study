@@ -23,17 +23,15 @@
 
 int main()
 {
-    unordered_map<int, std::string> map_;
-    for (int i = 0; i < 1000; ++i) 
+    for (int j = 1; j < 1000; ++j)
     {
-        map_.insert(make_pair(i, "adsf"));
+        unordered_map<int, std::string> map_;
+        for (int i = 0; i < 1000; ++i) map_.insert(make_pair(j * i, "asdf"));
+        for (int i = 0; i < 1000; ++i)
+        {
+            std::cout << i << ' ' << j << std::endl;
+            map_.erase(map_.find(j * i));
+        }
     }
-    for (int i = 0; i < 1000; ++i)
-    {
-        map_.erase(map_.find(i));
-    }
-    for (auto& pair_ : map_) std::cout << pair_.first << ' ';
-    std::cout << std::endl;
-    std::cout << sizeof(unordered_map<int, std::string>);
 }
 // sizeof(std::unordered_map) == 56
