@@ -46,7 +46,6 @@ public: // TO DO: remove
     struct BaseNode
     {
         BaseNode* next;
-        BaseNode(BaseNode* ptr = nullptr) : next(ptr) {}
     };
 
     struct Node : BaseNode
@@ -57,11 +56,11 @@ public: // TO DO: remove
         uint64_t hash; // чтобы не вызывать хеш-фукнцию для каждого узла при
                        // вызове find, потому что, например, для строк это долго
 
-        Node(BaseNode* next, pair<const Key, Value> kv, uint64_t hash)
-                : BaseNode(next)
-                , kv(kv)
-                , hash(hash)
-        {}
+//        Node(BaseNode* next, pair<const Key, Value> kv, uint64_t hash)
+//                : BaseNode(next)
+//                , kv(kv)
+//                , hash(hash)
+//        {}
     };
 
     template <bool IsConst>
@@ -119,6 +118,7 @@ public: // TO DO: remove
         {
             return BaseIterator<true>(nodePtr);
         }
+        friend class unordered_map;
     public: // TO DO: set private
         BaseNode* nodePtr; 
     };
@@ -148,8 +148,8 @@ public:
     unordered_map()
             : arrAlloc()
             , nodeAlloc()
-            , arrSz(countArrSize(0))
-            , arr(ArrAllocTraits::allocate(arrAlloc, arrSz))
+            , arrSz(0)
+            , arr(nullptr)
             , sz(0)
             , maxLoadFactor(1)
             , fakeNode(nullptr)
@@ -157,22 +157,111 @@ public:
         fakeNode.next = &fakeNode;
     }
 
+    unordered_map(unordered_map& other) // TO DO: add const
+            : arrAlloc(ArrAllocTraits::propagate_on_container_copy_assignment::
+                value ? other.arrAlloc : ArrAlloc())
+            , nodeAlloc(NodeAllocTraits::
+                propagate_on_container_copy_assignment::value ?
+                other.nodeAlloc : NodeAlloc())
+            , arrSz(other.arrSz)
+            , arr(ArrAllocTraits::allocate(arrAlloc, arrSz))
+            , sz(0)
+            , maxLoadFactor(other.maxLoadFactor)
+            , fakeNode(nullptr)
+    {
+        if (!other.sz)
+        {
+            fakeNode.next = &fakeNode;
+            return;
+        }
+        BaseNode* prev = &fakeNode;
+        Node* newNode = nullptr;
+        try
+        {
+            for (const_iterator itOther = other.cbegin(); itOther != 
+                other.end(); ++itOther, prev = prev->next)
+            // why other.end() with const unordered_map doesn't work???
+            {
+                if (itOther == other.begin()) [[unlikely]]
+                {
+                    insertFirstNode(static_cast<Node*>(itOther.nodePtr)->kv);
+                    continue;
+                }
+                newNode = NodeAllocTraits::allocate(nodeAlloc, 1);
+                try
+                {
+                    NodeAllocTraits::construct(nodeAlloc, newNode, Node{
+                        nullptr,static_cast<Node*>(itOther.nodePtr)->kv, 
+                        static_cast<Node*>(itOther.nodePtr)->hash});
+                } catch (...) {
+                    NodeAllocTraits::deallocate(nodeAlloc, newNode, 1);
+                    throw;
+                }
+                prev->next = newNode;
+                if (newNode->hash % arrSz != static_cast<Node*>(prev)->hash % 
+                    arrSz)
+                {
+                    arr[newNode->hash % arrSz] = static_cast<Node*>(prev);
+                }
+                ++sz;
+            }
+            prev->next = &fakeNode;
+        } catch (...) {
+            for (iterator it = begin(); ; ++it)
+            {
+                NodeAllocTraits::destroy(nodeAlloc, it.nodePtr);
+                NodeAllocTraits::deallocate(nodeAlloc, static_cast<Node*>(
+                    it.nodePtr), 1);
+                if (it == iterator(prev)) break;
+            }
+            ArrAllocTraits::deallocate(arrAlloc, arr, arrSz);
+            throw;
+        }
+    }
+
+    unordered_map(unordered_map&& other)
+            : arrAlloc(ArrAllocTraits::propagate_on_container_move_assignment::
+                value ? std::move(other.arrAlloc) : ArrAlloc())
+            , nodeAlloc(NodeAllocTraits::
+                propagate_on_container_move_assignment::value ? std::move(
+                other.nodeAlloc) : NodeAlloc())
+            , arrSz(other.arrSz)
+            , arr(other.arr)
+            , sz(other.sz)
+            , maxLoadFactor(other.maxLoadFactor)
+            , fakeNode(other.fakeNode.next)
+    {
+        iterator last = other.begin();
+        for (; last.nodePtr->next != &other.fakeNode; ++last);
+        last.nodePtr->next = &fakeNode;
+        other.arrSz = 0;
+        other.arr = nullptr;
+        other.sz = 0;
+        other.fakeNode.next = &other.fakeNode;
+    }
+
     std::pair<iterator, bool> insert(const value_type& value)
     {
         if (!sz)
         {
-            Node* newNode = NodeAllocTraits::allocate(nodeAlloc, 1);
+            bool arrWasAllocated = true;
+            if (isNullptr(arr))
+            {
+                arrWasAllocated = false;
+                arrSz = countArrSize(0);
+                arr = ArrAllocTraits::allocate(arrAlloc, arrSz);
+            }
+            Node* newNode = nullptr;
             try
             {
-                NodeAllocTraits::construct(nodeAlloc, newNode, Node(&fakeNode, 
-                    value, hash_(value.first)));
+                newNode = insertFirstNode(value);
             } catch (...) {
-                NodeAllocTraits::deallocate(nodeAlloc, newNode, 1);
+                if (!arrWasAllocated) 
+                {
+                    ArrAllocTraits::deallocate(arrAlloc, arr, arrSz);
+                }
                 throw;
             }
-            fakeNode.next = newNode;
-            arr[newNode->hash % arrSz] = static_cast<Node*>(&fakeNode);
-            ++sz;
             return make_pair(iterator(newNode), true);
         }
         uint64_t hashValue = hash_(value.first);
@@ -197,7 +286,7 @@ public:
         try
         {
             NodeAllocTraits::construct(nodeAlloc, newNode, 
-                Node(nullptr, value, hashValue));
+                Node{nullptr, value, hashValue});
         } catch (...) {
             NodeAllocTraits::deallocate(nodeAlloc, newNode, 1);
             throw;
@@ -288,11 +377,26 @@ public:
 
     iterator begin() noexcept { return iterator(fakeNode.next); }
     iterator end() noexcept { return iterator(&fakeNode); }
-    const_iterator begin() const noexcept { return iterator(fakeNode.next); }
-    const_iterator end() const noexcept { return iterator(&fakeNode); }
-    const_iterator cbegin() const noexcept { return iterator(fakeNode.next); }
-    const_iterator cend() const noexcept { return iterator(&fakeNode); }
 
+    const_iterator begin() const noexcept 
+    { 
+        return const_iterator(fakeNode.next); 
+    }
+
+    const_iterator end() const noexcept 
+    { 
+        return const_iterator(&fakeNode); 
+    }
+
+    const_iterator cbegin() const noexcept 
+    { 
+        return const_iterator(fakeNode.next); 
+    }
+
+    const_iterator cend() const noexcept 
+    { 
+        return const_iterator(&fakeNode); 
+    }
 
     void reserve(size_t count)
     {
@@ -338,7 +442,7 @@ public:
         maxLoadFactor = newMaxLoadFactor;
     }
 
-    Alloc get_allocator() const noexcept { return 
+//    Alloc get_allocator() const noexcept { return 
 
     void print() noexcept
     {
@@ -378,6 +482,23 @@ public: // TO DO: remove
                 arr_[constructedNode->hash % arrSz_]->next;
             arr_[constructedNode->hash % arrSz_]->next = constructedNode;
         }
+    }
+    
+    Node* insertFirstNode(const value_type& value)
+    {
+        Node* newNode = NodeAllocTraits::allocate(nodeAlloc, 1);
+        try
+        {
+            NodeAllocTraits::construct(nodeAlloc, newNode, Node{&fakeNode, 
+                value, hash_(value.first)});
+        } catch (...) {
+            NodeAllocTraits::deallocate(nodeAlloc, newNode, 1);
+            throw;
+        }
+        fakeNode.next = newNode;
+        arr[newNode->hash % arrSz] = static_cast<Node*>(&fakeNode);
+        ++sz;
+        return newNode;
     }
 
 public:
