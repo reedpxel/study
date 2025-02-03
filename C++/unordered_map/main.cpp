@@ -24,14 +24,17 @@
 int main()
 {
     unordered_map<int, std::string> map;
-    for (int i = 0; i < 5; ++i) map.insert(make_pair(i, ""));
-    unordered_map<int, std::string> map2 = std::move(map);
-    for (auto& pair_ : map) std::cout << pair_.first << ' ';
-    std::cout << std::endl;
-    for (auto& pair_ : map2) std::cout << pair_.first << ' ';
-    std::cout << std::endl;
+    for (int i = 0; i < 12; ++i) map.insert(make_pair(i, "abc"));
+    unordered_map<int, std::string> map2;
+    for (int i = 0; i < 12; ++i) map2.insert(make_pair(i * 113, "a"));
+    map2.insert(make_pair(23, "b"));
+    map2.insert(make_pair(50, "c"));
+    map = std::move(map2);
+    unordered_map<int, std::string> map3 = std::move(map);
     map.print();
-    std::cout << "\n@@@@@@@@@@@@@@@@\n\n";
+    std::cout << "\n**********\n\n";
     map2.print();
+    std::cout << "\n**********\n\n";
+    map3.print();
 }
 // sizeof(std::unordered_map) == 56
