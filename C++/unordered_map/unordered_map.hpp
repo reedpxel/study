@@ -1,9 +1,7 @@
 #ifndef UNORDERED_MAP_H
 #define UNORDERED_MAP_H
 
-#include <vector>
-#include <forward_list>
-
+#include <algorithm>
 #include "hash_functor.hpp"
 #include "equal_functor.hpp"
 #include <iostream> // TO DO: remove
@@ -266,6 +264,11 @@ public:
         return *this;
     }
 
+    // why does not the type of the allocator matter? arrAlloc allocates Node*,
+    // nodeAlloc allocates Node - neither of them allocates pair<Key, Value>. 
+    // Which one must be returned?
+    Alloc get_allocator() const noexcept { return arrAlloc; }
+
     std::pair<iterator, bool> insert(const value_type& value)
     {
         if (!sz)
@@ -331,6 +334,7 @@ public:
     
     iterator find(const Key& key_)
     {
+        if (isNullptr(arr)) return end();
         uint64_t hashValue = hash_(key_);
         Node* line = arr[hashValue % arrSz];
         if (isNullptr(line)) return end();
@@ -348,10 +352,10 @@ public:
         return keyFound ? iterator(line) : end();
     }
 
-    const_iterator find(const Key& key_) const
-    {
-        return const_iterator(nullptr);
-    }
+//    const_iterator find(const Key& key_) const
+//    {
+//        return const_iterator(nullptr);
+//    }
 
     iterator erase(iterator pos) noexcept
     {
@@ -389,6 +393,64 @@ public:
         return iterator(nullptr);
     }
 
+    Value& at(const Key& key_)
+    {
+        iterator it = find(key_);
+        if (it == end()) 
+        {
+            throw std::out_of_range("Element with such key is missing");
+        }
+        return (*it).second;
+    }
+
+    const Value& at(const Key& key_) const
+    {
+        iterator it = find(key_);
+        if (it == end()) 
+        {
+            throw std::out_of_range("Element with such key is missing");
+        }
+        return (*it).second;
+    }
+
+    Value& operator[](const Key& key_)
+    {
+        iterator it = find(key_);
+        if (it == end())
+        {
+            // emplace(pair(std::move(key_), Value()));
+            auto res = insert(pair(key_, Value()));
+            return (*res.first).second;
+        }
+        return (*it).second;
+    }
+    
+//    Value& operator[](Key&& key_)
+//    {
+//        
+//    }
+
+    size_t count(const Key& key_)/* const*/ // TO DO: add const 
+    {
+        return find(key_) == end() ? 0 : 1;
+    }
+
+    size_t bucket(const Key& key_) const
+    {
+        if (isNullptr(arr) || !arrSz) return 0;
+        return hash_(key_) % arrSz;
+    }
+
+    size_t bucket_size(size_t n) const
+    {
+        if (isNullptr(arr) || n >= arrSz || isNullptr(arr[n])) return 0;
+        size_t res = 0;
+        for (BaseNode* node = arr[n]->next; node != &fakeNode &&
+            static_cast<Node*>(node)->hash % arrSz == n; node = node->next, 
+            ++res);
+        return res;
+    }
+
     iterator begin() noexcept { return iterator(fakeNode.next); }
     iterator end() noexcept { return iterator(&fakeNode); }
 
@@ -412,9 +474,9 @@ public:
         return const_iterator(&fakeNode); 
     }
 
-    void reserve(size_t count)
-    {
-
+    void reserve(size_t count) 
+    { 
+        rehash(std::ceil(maxLoadFactor * arrSz - 1));
     }
 
     void rehash(size_t newBucketCount)
@@ -447,18 +509,49 @@ public:
     size_t bucket_count() const noexcept { return arrSz; }
     double load_factor() const noexcept { return sz / arrSz; } 
     double max_load_factor() const noexcept { return maxLoadFactor; } 
-//    size_t bucket(const Key& key_) const noexcept
-//    {
-//    }
 
     void set_max_load_factor(size_t newMaxLoadFactor) noexcept
     {
         maxLoadFactor = newMaxLoadFactor;
     }
 
-//    Alloc get_allocator() const noexcept { return 
-
     void clear() noexcept { clearHelper(); }
+    Hash hash_function() const { return hash_; }
+    KeyEqual key_eq() const { return equal_; }
+
+    bool operator==(unordered_map& other) // custom binary predicate seems not 
+    // to work because of the end() const error
+    {
+        if (sz != other.sz) return false;
+        return std::is_permutation(begin(), end(), other.begin()/*, 
+            [this](const pair<Key, Value>& thisPair, const pair<Key, Value>& 
+                otherPair)
+            {
+                return equal_(thisPair.first, otherPair.first) &&
+                    (thisPair.second == otherPair.second);
+            }*/); 
+    // TO DO: add binary predicate
+    }
+
+    void swap(unordered_map& other)
+    {
+        if (ArrAllocTraits::propagate_on_container_swap::value)
+        {
+            std::swap(arrAlloc, other.arrAlloc);
+            std::swap(nodeAlloc, other.nodeAlloc);
+        }
+        BaseNode* thisLast = fakeNode.next;
+        BaseNode* otherLast = other.fakeNode.next;
+        for (; thisLast->next != &fakeNode; thisLast = thisLast->next);
+        for (; otherLast->next != &other.fakeNode; otherLast = 
+            otherLast->next);
+        std::swap(thisLast->next, otherLast->next);
+        std::swap(arrSz, other.arrSz);
+        std::swap(arr, other.arr);
+        std::swap(sz, other.sz);
+        std::swap(maxLoadFactor, other.maxLoadFactor);
+        std::swap(fakeNode, other.fakeNode);
+    }
 
     void print() noexcept
     {
