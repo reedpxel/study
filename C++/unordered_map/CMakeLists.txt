@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.5.0)
 project(unordered_map VERSION 0.1.0 LANGUAGES C CXX)
+#set(CMAKE_C_COMPILER "/usr/bin/clang")
+#set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
 set(CMAKE_CXX_STANDARD 20)
 
 set(GCC_compile_flags "-Wall -Wextra -Wpedantic -Werror")

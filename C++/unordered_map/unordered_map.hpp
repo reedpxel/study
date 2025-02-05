@@ -2,6 +2,7 @@
 #define UNORDERED_MAP_H
 
 #include <algorithm>
+#include <cmath>
 #include "hash_functor.hpp"
 #include "equal_functor.hpp"
 #include <iostream> // TO DO: remove
@@ -49,16 +50,7 @@ public: // TO DO: remove
     struct Node : BaseNode
     {
         pair<const Key, Value> kv;
-        // хеш хранится не по модулю длины buckets, а просто. Когда надо,
-        // берется модуль от него
-        uint64_t hash; // чтобы не вызывать хеш-фукнцию для каждого узла при
-                       // вызове find, потому что, например, для строк это долго
-
-//        Node(BaseNode* next, pair<const Key, Value> kv, uint64_t hash)
-//                : BaseNode(next)
-//                , kv(kv)
-//                , hash(hash)
-//        {}
+        uint64_t hash;
     };
 
     template <bool IsConst>
@@ -73,8 +65,9 @@ public: // TO DO: remove
         using reference = std::conditional_t<
             IsConst, const pair<const Key, Value>&, pair<const Key, Value>&>;
         using iterator_category = std::forward_iterator_tag;
-
-        BaseIterator(BaseNode* ptr) : nodePtr(ptr) {}
+        using node_pointer_t = std::conditional_t<IsConst, const BaseNode*,
+              BaseNode*>;
+        BaseIterator(node_pointer_t ptr) : nodePtr(ptr) {}
 
         reference operator*() const noexcept
         {
@@ -111,14 +104,14 @@ public: // TO DO: remove
         {
             return !(*this == other);
         }
-        
+
         operator BaseIterator<true>() const noexcept
         {
             return BaseIterator<true>(nodePtr);
         }
         friend class unordered_map;
     public: // TO DO: set private
-        BaseNode* nodePtr; 
+        node_pointer_t nodePtr; 
     };
 
     using ArrAlloc = typename std::allocator_traits<Alloc>:: 
@@ -137,7 +130,7 @@ public:
     using key_equal = KeyEqual;
     using allocator_type = Alloc;
     using reference = value_type&;
-    using const_reference = const reference;
+    using const_reference = const value_type&;
     using pointer = std::allocator_traits<Alloc>::pointer;
     using const_pointer = std::allocator_traits<Alloc>::const_pointer;
     using iterator = BaseIterator<false>;
@@ -155,7 +148,7 @@ public:
         fakeNode.next = &fakeNode;
     }
 
-    unordered_map(unordered_map& other) // TO DO: add const
+    unordered_map(const unordered_map& other)
             : arrAlloc(ArrAllocTraits::propagate_on_container_copy_assignment::
                 value ? other.arrAlloc : ArrAlloc())
             , nodeAlloc(NodeAllocTraits::
@@ -264,7 +257,7 @@ public:
         return *this;
     }
 
-    // why does not the type of the allocator matter? arrAlloc allocates Node*,
+    // Why does not the type of the allocator matter? arrAlloc allocates Node*,
     // nodeAlloc allocates Node - neither of them allocates pair<Key, Value>. 
     // Which one must be returned?
     Alloc get_allocator() const noexcept { return arrAlloc; }
@@ -315,7 +308,7 @@ public:
         try
         {
             NodeAllocTraits::construct(nodeAlloc, newNode, 
-                Node{nullptr, value, hashValue});
+                Node{{nullptr}, value, hashValue});
         } catch (...) {
             NodeAllocTraits::deallocate(nodeAlloc, newNode, 1);
             throw;
@@ -330,32 +323,39 @@ public:
 //         return std::make_pair(iterator(nullptr), false);
 //    }
 
+//    template <typename... Args>
+//    pair<iterator, bool> emplace(Args&& args)
+//    {
+//        
+//    }
+
     ~unordered_map() { deallocateNodesAndArr(); }
     
     iterator find(const Key& key_)
     {
-        if (isNullptr(arr)) return end();
-        uint64_t hashValue = hash_(key_);
-        Node* line = arr[hashValue % arrSz];
-        if (isNullptr(line)) return end();
-        line = static_cast<Node*>(line->next);
-        bool keyFound = false;
-        for (; static_cast<BaseNode*>(line) != &fakeNode && line->hash % arrSz 
-                == hashValue % arrSz; line = static_cast<Node*>(line->next))
-        {
-            if (line->kv.first == key_)
-            {
-                keyFound = true;
-                break;
-            }
-        }
-        return keyFound ? iterator(line) : end();
+//        if (isNullptr(arr)) return end();
+//        uint64_t hashValue = hash_(key_);
+//        Node* line = arr[hashValue % arrSz];
+//        if (isNullptr(line)) return end();
+//        line = static_cast<Node*>(line->next);
+//        bool keyFound = false;
+//        for (; static_cast<BaseNode*>(line) != &fakeNode && line->hash % arrSz 
+//                == hashValue % arrSz; line = static_cast<Node*>(line->next))
+//        {
+//            if (line->kv.first == key_)
+//            {
+//                keyFound = true;
+//                break;
+//            }
+//        }
+//        return keyFound ? iterator(line) : end();
+        return iterator(const_cast<BaseNode*>(findHelper(key_)));
     }
 
-//    const_iterator find(const Key& key_) const
-//    {
-//        return const_iterator(nullptr);
-//    }
+    const_iterator find(const Key& key_) const
+    {
+        return const_iterator(findHelper(key_));
+    }
 
     iterator erase(iterator pos) noexcept
     {
@@ -388,10 +388,10 @@ public:
         return iterator(prev->next);
     }
 
-    iterator erase(const_iterator pos)
-    {
-        return iterator(nullptr);
-    }
+//    iterator erase(const_iterator pos)
+//    {
+//        return iterator(nullptr);
+//    }
 
     Value& at(const Key& key_)
     {
@@ -430,7 +430,7 @@ public:
 //        
 //    }
 
-    size_t count(const Key& key_)/* const*/ // TO DO: add const 
+    size_t count(const Key& key_) const // TO DO: add const, make it work
     {
         return find(key_) == end() ? 0 : 1;
     }
@@ -470,19 +470,30 @@ public:
     }
 
     const_iterator cend() const noexcept 
-    { 
+    {
         return const_iterator(&fakeNode); 
     }
 
     void reserve(size_t count) 
-    { 
-        rehash(std::ceil(maxLoadFactor * arrSz - 1));
+    {
+        rehash(std::ceil(count / maxLoadFactor));
     }
 
     void rehash(size_t newBucketCount)
     {
-        if (!sz || !newBucketCount) return;
-        if (sz / newBucketCount >= maxLoadFactor) return;
+        if (isNullptr(arr))
+        {
+            if (newBucketCount)
+            {
+                arr = ArrAllocTraits::allocate(arrAlloc, newBucketCount);
+                arrSz = newBucketCount;
+            }
+            return;
+        }
+        if (!newBucketCount || sz / newBucketCount >= maxLoadFactor)
+        {
+            return;
+        }
         Node** newArr = ArrAllocTraits::allocate(arrAlloc, newBucketCount);
         for (Node* node = static_cast<Node*>(fakeNode.next);
             static_cast<BaseNode*>(node) != &fakeNode;)
@@ -510,7 +521,7 @@ public:
     double load_factor() const noexcept { return sz / arrSz; } 
     double max_load_factor() const noexcept { return maxLoadFactor; } 
 
-    void set_max_load_factor(size_t newMaxLoadFactor) noexcept
+    void set_max_load_factor(double newMaxLoadFactor) noexcept
     {
         maxLoadFactor = newMaxLoadFactor;
     }
@@ -598,7 +609,7 @@ public: // TO DO: remove
         Node* newNode = NodeAllocTraits::allocate(nodeAlloc, 1);
         try
         {
-            NodeAllocTraits::construct(nodeAlloc, newNode, Node{&fakeNode, 
+            NodeAllocTraits::construct(nodeAlloc, newNode, Node{{&fakeNode}, 
                 value, hash_(value.first)});
         } catch (...) {
             NodeAllocTraits::deallocate(nodeAlloc, newNode, 1);
@@ -650,27 +661,26 @@ public: // TO DO: remove
         fakeNode.next = &fakeNode;
     }
 
-    void copyNodes(unordered_map& other)
+    void copyNodes(const unordered_map& other)
     {
         BaseNode* prev = &fakeNode;
         Node* newNode = nullptr;
         try
         {
             for (const_iterator itOther = other.cbegin(); itOther != 
-                other.end(); ++itOther, prev = prev->next)
-            // why other.end() with const unordered_map doesn't work???
+                other.cend(); ++itOther, prev = prev->next)
             {
                 if (itOther == other.begin()) [[unlikely]]
                 {
-                    insertFirstNode(static_cast<Node*>(itOther.nodePtr)->kv);
+                    insertFirstNode(static_cast<const Node*>(itOther.nodePtr)->kv);
                     continue;
                 }
                 newNode = NodeAllocTraits::allocate(nodeAlloc, 1);
                 try
                 {
                     NodeAllocTraits::construct(nodeAlloc, newNode, Node{
-                        nullptr, static_cast<Node*>(itOther.nodePtr)->kv, 
-                        static_cast<Node*>(itOther.nodePtr)->hash});
+                        nullptr, static_cast<const Node*>(itOther.nodePtr)->kv, 
+                        static_cast<const Node*>(itOther.nodePtr)->hash});
                 } catch (...) {
                     NodeAllocTraits::deallocate(nodeAlloc, newNode, 1);
                     throw;
@@ -696,7 +706,22 @@ public: // TO DO: remove
             throw;
         }
     }
-    
+
+    void test(const unordered_map& other) const
+    {
+        std::cout << (std::is_same_v<decltype(fakeNode), unordered_map<Key,
+            Value, Hash, KeyEqual, Alloc>::BaseNode>) << ' ' <<
+            (std::is_same_v<decltype(fakeNode), const unordered_map<Key,
+            Value, Hash, KeyEqual, Alloc>::BaseNode>) << std::endl;
+        std::cout << (std::is_same_v<decltype(other.fakeNode), unordered_map<Key,
+            Value, Hash, KeyEqual, Alloc>::BaseNode>) << ' ' <<
+            (std::is_same_v<decltype(other.fakeNode), const unordered_map<Key,
+            Value, Hash, KeyEqual, Alloc>::BaseNode>) << std::endl;
+
+        const_iterator it = other.cend();
+        std::cout << "test: " << it.nodePtr << std::endl;
+    }
+
     template <typename T>
     void moveCtorChanges(T&& other) noexcept
     {
@@ -707,6 +732,28 @@ public: // TO DO: remove
         other.arr = nullptr;
         other.fakeNode.next = &other.fakeNode;
     }
+
+    const BaseNode* findHelper(const Key& key_) const
+    {
+        if (isNullptr(arr)) return &fakeNode;
+        uint64_t hashValue = hash_(key_);
+        const Node* line = arr[hashValue % arrSz];
+        if (isNullptr(line)) return &fakeNode;
+        line = static_cast<const Node*>(line->next);
+        bool keyFound = false;
+        for (; static_cast<const BaseNode*>(line) != &fakeNode && line->hash % 
+            arrSz == hashValue % arrSz; line = static_cast<const Node*>(line->
+            next))
+        {
+            if (line->kv.first == key_)
+            {
+                keyFound = true;
+                break;
+            }
+        }
+        return keyFound ? line : &fakeNode;
+    }
+
 public:
     ArrAlloc arrAlloc;
     NodeAlloc nodeAlloc;
