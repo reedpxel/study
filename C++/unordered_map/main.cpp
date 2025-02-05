@@ -1,7 +1,6 @@
 #include "unordered_map.hpp"
 
 #include <iostream>
-
 // void* operator new(size_t count)
 // {
 //     void* ptr = malloc(count);
@@ -79,9 +78,19 @@ struct HashFunctor<KeyType>
     uint64_t operator()(const KeyType& obj) const noexcept { return obj.x; }
 };
 
+template <>
+struct std::hash<KeyType>
+{
+    uint64_t operator()(const KeyType& obj) const noexcept { return obj.x; }
+};
+
 int main()
 {
-    unordered_map<KeyType, ValueType> map1;
-    map1.insert(make_pair(KeyType(1), ValueType(1)));
+    unordered_map<KeyType, uint64_t> map1;
+    map1.emplace(1, 1);
+    map1.emplace(1, 2);
+    map1.emplace(2, 2);
+    map1.emplace(100, 3);
+    for (auto& [x, y] : map1) std::cout << x.x << ' ' << y << std::endl;
 }
 

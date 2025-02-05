@@ -51,6 +51,19 @@ public: // TO DO: remove
     {
         pair<const Key, Value> kv;
         uint64_t hash;
+
+        Node(BaseNode* next, pair<const Key, Value> kv, uint64_t hash)
+                : BaseNode{next}
+                , kv(kv)
+                , hash(hash)
+        {}
+
+        template <typename... KVArgs>
+        Node(BaseNode* next, uint64_t hash, KVArgs&&... kvargs)
+                : BaseNode{next}
+                , kv(std::forward<KVArgs>(kvargs)...)
+                , hash(hash)
+        {}
     };
 
     template <bool IsConst>
@@ -323,32 +336,75 @@ public:
 //         return std::make_pair(iterator(nullptr), false);
 //    }
 
-//    template <typename... Args>
-//    pair<iterator, bool> emplace(Args&& args)
-//    {
-//        
-//    }
+    template <typename... KVArgs>
+    pair<iterator, bool> emplace(KVArgs&&... kvArgs)
+    {
+        if (!sz)
+        {
+            bool arrWasAllocated = true;
+            if (isNullptr(arr))
+            {
+                arrWasAllocated = false;
+                arrSz = countArrSize(0);
+                arr = ArrAllocTraits::allocate(arrAlloc, arrSz);
+            }
+            Node* newNode = nullptr;
+            try
+            {
+                newNode = emplaceFirstNode(std::forward<KVArgs>(kvArgs)...);
+            } catch (...) {
+                if (!arrWasAllocated) 
+                {
+                    ArrAllocTraits::deallocate(arrAlloc, arr, arrSz);
+                }
+                throw;
+            }
+            return make_pair(iterator(newNode), true);
+        }
+        // since key is not constructed yet, Node must be constructed first to
+        // get hash and check whether an element with such key already exists 
+        // or not
+        Node* newNode = NodeAllocTraits::allocate(nodeAlloc, 1);
+        try
+        {
+            NodeAllocTraits::construct(nodeAlloc, newNode, fakeNode.next, 0,
+                std::forward<KVArgs>(kvArgs)...);
+        } catch (...) {
+            NodeAllocTraits::deallocate(nodeAlloc, newNode, 1);
+            throw;
+        }
+        newNode->hash = hash_(newNode->kv.first);
+        Node* line = arr[newNode->hash % arrSz];
+        line = (isNullptr(line) ? 
+            reinterpret_cast<Node*>(&fakeNode) : 
+            static_cast<Node*>(line->next));
+        bool keyFound = false;
+        for (; static_cast<BaseNode*>(line) != &fakeNode && 
+                line->hash % arrSz == newNode->hash % arrSz; 
+            line = static_cast<Node*>(line->next))
+        {
+            if (equal_(line->kv.first, newNode->kv.first))
+            {
+                keyFound = true;
+                break;
+            }
+        }
+        if (keyFound) 
+        {
+            NodeAllocTraits::destroy(nodeAlloc, newNode);
+            NodeAllocTraits::deallocate(nodeAlloc, newNode, 1);
+            return make_pair(iterator(line), false);
+        }
+        if ((sz + 1) / arrSz >= maxLoadFactor) rehash(countArrSize(arrSz));
+        insertConstructedNode(newNode, arr, arrSz);
+        ++sz;
+        return make_pair(iterator(newNode), true);
+    }
 
     ~unordered_map() { deallocateNodesAndArr(); }
-    
+
     iterator find(const Key& key_)
     {
-//        if (isNullptr(arr)) return end();
-//        uint64_t hashValue = hash_(key_);
-//        Node* line = arr[hashValue % arrSz];
-//        if (isNullptr(line)) return end();
-//        line = static_cast<Node*>(line->next);
-//        bool keyFound = false;
-//        for (; static_cast<BaseNode*>(line) != &fakeNode && line->hash % arrSz 
-//                == hashValue % arrSz; line = static_cast<Node*>(line->next))
-//        {
-//            if (line->kv.first == key_)
-//            {
-//                keyFound = true;
-//                break;
-//            }
-//        }
-//        return keyFound ? iterator(line) : end();
         return iterator(const_cast<BaseNode*>(findHelper(key_)));
     }
 
@@ -609,8 +665,29 @@ public: // TO DO: remove
         Node* newNode = NodeAllocTraits::allocate(nodeAlloc, 1);
         try
         {
-            NodeAllocTraits::construct(nodeAlloc, newNode, Node{{&fakeNode}, 
-                value, hash_(value.first)});
+            NodeAllocTraits::construct(nodeAlloc, newNode,
+                Node{{&fakeNode}, value, hash_(value.first)});
+        } catch (...) {
+            NodeAllocTraits::deallocate(nodeAlloc, newNode, 1);
+            throw;
+        }
+        fakeNode.next = newNode;
+        arr[newNode->hash % arrSz] = static_cast<Node*>(&fakeNode);
+        ++sz;
+        return newNode;
+    }
+
+    template <typename... Args>
+    Node* emplaceFirstNode(Args&&... args)
+    // args are the arguments of constructors of key and value, not all the
+    // fields of Node (next and hash must not be among args)
+    {
+        Node* newNode = NodeAllocTraits::allocate(nodeAlloc, 1);
+        try
+        {
+            NodeAllocTraits::construct(nodeAlloc, newNode, &fakeNode, 0, 
+                std::forward<Args>(args)...); 
+            newNode->hash = hash_(newNode->kv.first);
         } catch (...) {
             NodeAllocTraits::deallocate(nodeAlloc, newNode, 1);
             throw;
