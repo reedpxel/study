@@ -22,17 +22,6 @@ bool isNullptr(T* ptr)
 using std::pair;
 using std::make_pair;
 
-// указатели и ссылки на эл-ты в unordered_map не инвалидируются при insert и
-// erase. Итераторы инвалидируются согласно стандарту, но никто не знает почему.
-
-// чтобы можно было сделать std::unordered_map со своим типом T, нужны:
-//  - хеш-функция (либо доопределить std::hash для Т, либо написать функтор)
-//  - компаратор (на равенство)
-
-// как определять новый размер arr при перехешировании? Размер должен (по идее,
-// но не обязательно) быть простым числом в несколько раз больше текущего
-// размера
-
 template <
     typename Key, 
     typename Value, 
@@ -52,9 +41,15 @@ public: // TO DO: remove
         pair<const Key, Value> kv;
         uint64_t hash;
 
-        Node(BaseNode* next, pair<const Key, Value> kv, uint64_t hash)
+        Node(BaseNode* next, const pair<const Key, Value>& kv, uint64_t hash)
                 : BaseNode{next}
                 , kv(kv)
+                , hash(hash)
+        {}
+
+        Node(BaseNode* next, pair<const Key, Value>&& kv, uint64_t hash)
+                : BaseNode{next}
+                , kv(std::move(kv))
                 , hash(hash)
         {}
 
@@ -275,66 +270,29 @@ public:
     // Which one must be returned?
     Alloc get_allocator() const noexcept { return arrAlloc; }
 
+    // The following code calls one KeyType copy ctor:
+    // std::pair<const KeyType, uint64_t> p(KeyType(1), 1);
+    // map.insert(p);
+    //
+    // But if pair type is slightly different, an extra copy is made:
+    // auto p = make_pair(KeyType(1), 1); or
+    // auto p = make_pair(KeyType(1), 1ull); or
+    // auto p = make_pair(KeyType(1), uint64_t(1); or even
+    // pair<KeyType, uint64_t> p(KeyType(1), uint64_t(1)); 
+    // are all not unordered_map<...>::value_type and a copy from this type to
+    // value_type must be done that calls the KeyType copy ctor
+    //
+    // In STL unordered_map, insert does not make an extra copy in all these
+    // cases. Why??????????????????????????????????????????????????????
     std::pair<iterator, bool> insert(const value_type& value)
     {
-        if (!sz)
-        {
-            bool arrWasAllocated = true;
-            if (isNullptr(arr))
-            {
-                arrWasAllocated = false;
-                arrSz = countArrSize(0);
-                arr = ArrAllocTraits::allocate(arrAlloc, arrSz);
-            }
-            Node* newNode = nullptr;
-            try
-            {
-                newNode = insertFirstNode(value);
-            } catch (...) {
-                if (!arrWasAllocated) 
-                {
-                    ArrAllocTraits::deallocate(arrAlloc, arr, arrSz);
-                }
-                throw;
-            }
-            return make_pair(iterator(newNode), true);
-        }
-        uint64_t hashValue = hash_(value.first);
-        Node* line = arr[hashValue % arrSz];
-        line = (isNullptr(line) ? 
-            reinterpret_cast<Node*>(&fakeNode) : 
-            static_cast<Node*>(line->next));
-        bool keyFound = false;
-        for (; static_cast<BaseNode*>(line) != &fakeNode && 
-                line->hash % arrSz == hashValue % arrSz; 
-            line = static_cast<Node*>(line->next))
-        {
-            if (equal_(line->kv.first, value.first))
-            {
-                keyFound = true;
-                break;
-            }
-        }
-        if (keyFound) return make_pair(iterator(line), false);
-        if ((sz + 1) / arrSz >= maxLoadFactor) rehash(countArrSize(arrSz));
-        Node* newNode = NodeAllocTraits::allocate(nodeAlloc, 1);
-        try
-        {
-            NodeAllocTraits::construct(nodeAlloc, newNode, 
-                Node{{nullptr}, value, hashValue});
-        } catch (...) {
-            NodeAllocTraits::deallocate(nodeAlloc, newNode, 1);
-            throw;
-        }
-        insertConstructedNode(newNode, arr, arrSz);
-        ++sz;
-        return make_pair(iterator(newNode), true);
+        return insertHelper(value);
     }
 
-//    std::pair<iterator, bool> insert([[maybe_unused]] value_type&& value)
-//    {
-//         return std::make_pair(iterator(nullptr), false);
-//    }
+    std::pair<iterator, bool> insert(value_type&& value)
+    {
+        return insertHelper(std::move(value));
+    }
 
     template <typename... KVArgs>
     pair<iterator, bool> emplace(KVArgs&&... kvArgs)
@@ -444,10 +402,10 @@ public:
         return iterator(prev->next);
     }
 
-//    iterator erase(const_iterator pos)
-//    {
-//        return iterator(nullptr);
-//    }
+    iterator erase(const_iterator pos) noexcept
+    {
+        return erase(iterator(const_cast<BaseNode*>(pos.nodePtr)));
+    }
 
     Value& at(const Key& key_)
     {
@@ -474,19 +432,24 @@ public:
         iterator it = find(key_);
         if (it == end())
         {
-            // emplace(pair(std::move(key_), Value()));
-            auto res = insert(pair(key_, Value()));
+            auto res = emplace(key_, Value());
             return (*res.first).second;
         }
         return (*it).second;
     }
     
-//    Value& operator[](Key&& key_)
-//    {
-//        
-//    }
+    Value& operator[](Key&& key_)
+    {
+        iterator it = find(key_);
+        if (it == end())
+        {
+            auto res = emplace(key_, Value());
+            return (*res.first).second;
+        }
+        return (*it).second;
+    }
 
-    size_t count(const Key& key_) const // TO DO: add const, make it work
+    size_t count(const Key& key_) const
     {
         return find(key_) == end() ? 0 : 1;
     }
@@ -586,18 +549,16 @@ public:
     Hash hash_function() const { return hash_; }
     KeyEqual key_eq() const { return equal_; }
 
-    bool operator==(unordered_map& other) // custom binary predicate seems not 
-    // to work because of the end() const error
+    bool operator==(unordered_map& other)
     {
         if (sz != other.sz) return false;
-        return std::is_permutation(begin(), end(), other.begin()/*, 
+        return std::is_permutation(begin(), end(), other.begin(), 
             [this](const pair<Key, Value>& thisPair, const pair<Key, Value>& 
                 otherPair)
             {
                 return equal_(thisPair.first, otherPair.first) &&
                     (thisPair.second == otherPair.second);
-            }*/); 
-    // TO DO: add binary predicate
+            }); 
     }
 
     void swap(unordered_map& other)
@@ -659,14 +620,77 @@ public: // TO DO: remove
             arr_[constructedNode->hash % arrSz_]->next = constructedNode;
         }
     }
-    
-    Node* insertFirstNode(const value_type& value)
+
+    template <typename ValueType>
+    pair<iterator, bool> insertHelper(ValueType&& value)
+    {
+        if (!sz)
+        {
+            bool arrWasAllocated = true;
+            if (isNullptr(arr))
+            {
+                arrWasAllocated = false;
+                arrSz = countArrSize(0);
+                arr = ArrAllocTraits::allocate(arrAlloc, arrSz);
+            }
+            Node* newNode = nullptr;
+            try
+            {
+                newNode = insertFirstNode(std::forward<ValueType>(value));
+            } catch (...) {
+                if (!arrWasAllocated) 
+                {
+                    ArrAllocTraits::deallocate(arrAlloc, arr, arrSz);
+                }
+                throw;
+            }
+            return make_pair(iterator(newNode), true);
+        }
+        uint64_t hashValue = hash_(value.first);
+        Node* line = arr[hashValue % arrSz];
+        line = (isNullptr(line) ? 
+            reinterpret_cast<Node*>(&fakeNode) : 
+            static_cast<Node*>(line->next));
+        bool keyFound = false;
+        for (; static_cast<BaseNode*>(line) != &fakeNode && 
+            line->hash % arrSz == hashValue % arrSz; 
+            line = static_cast<Node*>(line->next))
+        {
+            if (equal_(line->kv.first, value.first))
+            {
+                keyFound = true;
+                break;
+            }
+        }
+        if (keyFound) return make_pair(iterator(line), false);
+        if ((sz + 1) / arrSz >= maxLoadFactor) rehash(countArrSize(arrSz));
+        Node* newNode = NodeAllocTraits::allocate(nodeAlloc, 1);
+        try
+        {
+            uint64_t hashValue = hash_(value.first);
+            // If value is lvalue, Node(BaseNode*, const pair&, hash) will be
+            // called. If value is rvalue, Node(BaseNode*, pair&&, hash) will 
+            // be called.
+            NodeAllocTraits::construct(nodeAlloc, newNode, nullptr, 
+                std::forward<ValueType>(value), hashValue);
+        } catch (...) {
+            NodeAllocTraits::deallocate(nodeAlloc, newNode, 1);
+            throw;
+        }
+        insertConstructedNode(newNode, arr, arrSz);
+        ++sz;
+        return make_pair(iterator(newNode), true);
+    }
+
+    template <typename ValueType>
+    Node* insertFirstNode(ValueType&& value)
     {
         Node* newNode = NodeAllocTraits::allocate(nodeAlloc, 1);
         try
         {
-            NodeAllocTraits::construct(nodeAlloc, newNode,
-                Node{{&fakeNode}, value, hash_(value.first)});
+            uint64_t hashValue = hash_(value.first);
+            NodeAllocTraits::construct(nodeAlloc, newNode, &fakeNode, 
+                std::forward<ValueType>(value), hashValue);
         } catch (...) {
             NodeAllocTraits::deallocate(nodeAlloc, newNode, 1);
             throw;
@@ -677,16 +701,16 @@ public: // TO DO: remove
         return newNode;
     }
 
-    template <typename... Args>
-    Node* emplaceFirstNode(Args&&... args)
-    // args are the arguments of constructors of key and value, not all the
-    // fields of Node (next and hash must not be among args)
+    template <typename... KVArgs>
+    Node* emplaceFirstNode(KVArgs&&... kvargs)
+    // kvargs are the arguments of constructors of key and value, not all the
+    // fields of Node (next and hash must not be among kvargs)
     {
         Node* newNode = NodeAllocTraits::allocate(nodeAlloc, 1);
         try
         {
             NodeAllocTraits::construct(nodeAlloc, newNode, &fakeNode, 0, 
-                std::forward<Args>(args)...); 
+                std::forward<KVArgs>(kvargs)...); 
             newNode->hash = hash_(newNode->kv.first);
         } catch (...) {
             NodeAllocTraits::deallocate(nodeAlloc, newNode, 1);
@@ -749,7 +773,8 @@ public: // TO DO: remove
             {
                 if (itOther == other.begin()) [[unlikely]]
                 {
-                    insertFirstNode(static_cast<const Node*>(itOther.nodePtr)->kv);
+                    insertFirstNode(static_cast<const Node*>(itOther.nodePtr)->
+                        kv);
                     continue;
                 }
                 newNode = NodeAllocTraits::allocate(nodeAlloc, 1);
@@ -784,21 +809,6 @@ public: // TO DO: remove
         }
     }
 
-    void test(const unordered_map& other) const
-    {
-        std::cout << (std::is_same_v<decltype(fakeNode), unordered_map<Key,
-            Value, Hash, KeyEqual, Alloc>::BaseNode>) << ' ' <<
-            (std::is_same_v<decltype(fakeNode), const unordered_map<Key,
-            Value, Hash, KeyEqual, Alloc>::BaseNode>) << std::endl;
-        std::cout << (std::is_same_v<decltype(other.fakeNode), unordered_map<Key,
-            Value, Hash, KeyEqual, Alloc>::BaseNode>) << ' ' <<
-            (std::is_same_v<decltype(other.fakeNode), const unordered_map<Key,
-            Value, Hash, KeyEqual, Alloc>::BaseNode>) << std::endl;
-
-        const_iterator it = other.cend();
-        std::cout << "test: " << it.nodePtr << std::endl;
-    }
-
     template <typename T>
     void moveCtorChanges(T&& other) noexcept
     {
@@ -830,15 +840,14 @@ public: // TO DO: remove
         }
         return keyFound ? line : &fakeNode;
     }
-
+    
 public:
     ArrAlloc arrAlloc;
     NodeAlloc nodeAlloc;
     size_t arrSz;
     Node** arr;
     size_t sz;
-    double maxLoadFactor; // если load_factor() превышает это число, делается
-                          // rehash
+    double maxLoadFactor;
     BaseNode fakeNode;
     [[no_unique_address]] Hash hash_;
     [[no_unique_address]] KeyEqual equal_;
