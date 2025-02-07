@@ -144,9 +144,12 @@ public:
     using iterator = BaseIterator<false>;
     using const_iterator = BaseIterator<true>;
 
-    unordered_map()
-            : arrAlloc()
-            , nodeAlloc()
+    unordered_map(const Alloc& alloc = Alloc())
+            : arrAlloc(ArrAllocTraits::propagate_on_container_copy_assignment::
+                value ? alloc : Alloc())
+            , nodeAlloc(NodeAllocTraits::
+                propagate_on_container_copy_assignment::value ? alloc : 
+                Alloc())
             , arrSz(0)
             , arr(nullptr)
             , sz(0)
@@ -154,6 +157,53 @@ public:
             , fakeNode(nullptr)
     {
         fakeNode.next = &fakeNode;
+    }
+
+    explicit unordered_map(size_t bucket_count,
+                           const Hash& hash_ = Hash(),
+                           const KeyEqual& keyEqual = KeyEqual(),
+                           const Alloc& alloc = Alloc())
+            : arrAlloc(ArrAllocTraits::propagate_on_container_copy_assignment::
+                value ? alloc : Alloc())
+            , nodeAlloc(NodeAllocTraits::
+                propagate_on_container_copy_assignment::value ? alloc : 
+                Alloc())
+            , arrSz(bucket_count)
+            , arr(ArrAllocTraits::allocate(arrAlloc, arrSz))
+            , sz(0)
+            , maxLoadFactor(1)
+            , fakeNode(nullptr)
+            , hash_(hash_)
+            , equal_(keyEqual)
+    {
+        fakeNode.next = &fakeNode;
+    }
+
+    template <typename InputIt>
+    unordered_map(InputIt first, InputIt last, 
+                  size_t bucket_count = 7, 
+                  const Hash& hash_ = Hash(),
+                  const KeyEqual& keyEqual = KeyEqual(),
+                  const Alloc& alloc = Alloc())
+            : unordered_map(bucket_count, hash_, keyEqual, alloc)
+    {
+        for (InputIt it = first; it != last; ++it)
+        {
+            insert(*it);
+        }
+    }
+
+    unordered_map(std::initializer_list<value_type> iList, 
+                  size_t bucket_count = 7,
+                  const Hash& hash_ = Hash(),
+                  const KeyEqual& keyEqual = KeyEqual(),
+                  const Alloc& alloc = Alloc())
+            : unordered_map(bucket_count, hash_, keyEqual, alloc)
+    {
+        for (auto it = iList.begin(); it != iList.end(); ++it)
+        {
+            insert(*it);
+        }
     }
 
     unordered_map(const unordered_map& other)
@@ -173,7 +223,7 @@ public:
             fakeNode.next = &fakeNode;
             return;
         }
-        copyNodes(other);        
+        copyNodes(other); 
     }
 
     unordered_map(unordered_map&& other)
@@ -580,22 +630,6 @@ public:
         std::swap(maxLoadFactor, other.maxLoadFactor);
         std::swap(fakeNode, other.fakeNode);
     }
-
-    void print() noexcept
-    {
-        std::cout << "arrSz: " << arrSz << std::endl << "arr:\n";
-        for (size_t i = 0; i < arrSz; ++i) std::cout << i << ' ' << arr[i] << 
-            std::endl;
-        std::cout << std::endl << "nodes:\n";
-        for (iterator it = begin(); it != end(); ++it)
-        {
-            std::cout << it.nodePtr << ' ' << it.nodePtr->next << ' ' <<
-                it->first << ' ' << it->second << ' ' << static_cast<Node*>(
-                it.nodePtr)->hash % arrSz << std::endl;
-        }
-        std::cout << "fakeNode: " << &fakeNode << ' ' << fakeNode.next << 
-            std::endl;
-    };
 public: // TO DO: remove
     size_t countArrSize(size_t oldArrSize) const noexcept
     {

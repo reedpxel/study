@@ -2,24 +2,26 @@
 
 #include <iostream>
 #include <unordered_map>
-// void* operator new(size_t count)
-// {
-//     void* ptr = malloc(count);
-//     std::cout << count << " bytes allocated at " << ptr << '\n';
-//     return ptr;
-// }
-// 
-// void operator delete(void* ptr)
-// {
-//     std::cout << "deallocation at " << ptr << '\n';
-//     free(ptr);
-// }
-// 
-// void operator delete(void* ptr, size_t count)
-// {
-//     std::cout << count << " bytes deallocated at " << ptr << '\n';
-//     free(ptr);
-// }
+#include <vector>
+
+ void* operator new(size_t count)
+ {
+     void* ptr = malloc(count);
+     std::cout << count << " bytes allocated at " << ptr << '\n';
+     return ptr;
+ }
+ 
+ void operator delete(void* ptr)
+ {
+     std::cout << "deallocation at " << ptr << '\n';
+     free(ptr);
+ }
+ 
+ void operator delete(void* ptr, size_t count)
+ {
+     std::cout << count << " bytes deallocated at " << ptr << '\n';
+     free(ptr);
+ }
 
 struct S
 {
@@ -93,14 +95,27 @@ struct Debug
 
 int main()
 {
-    unordered_map<int, std::string> map1, map2;
-    map1[1] = "one";
-    int two = 2;
-    map1[two] = "two";
-    map1.insert(make_pair(3, "three"));
-    map2[1] = map1[1];
-    map2[2] = map1[2];
-    map2[3] = "three";
-    std::cout << (map1 == map2) << std::endl;
+    unordered_map<int, std::string> map1;
+    unordered_map<int, std::string> map2(100);
+    std::vector<std::pair<int, std::string>> v = {
+        std::make_pair(1, "one"),
+        std::make_pair(2, "two"),
+        std::make_pair(3, "three"),
+        std::make_pair(4, "four")};
+    unordered_map<int, std::string> map3(v.begin(), v.end());
+    unordered_map<int, std::string> map4 = {
+        std::make_pair(1, "one"),
+        std::make_pair(2, "two"),
+        std::make_pair(3, "three"),
+        std::make_pair(4, "four")};
+    std::cout << "map1:\n";
+    for (auto& [x, y] : map1) std::cout << x << ' ' << y << '\n';  
+    std::cout << "map2:\n";
+    for (auto& [x, y] : map2) std::cout << x << ' ' << y << '\n';
+    std::cout << "map3:\n";
+    for (auto& [x, y] : map3) std::cout << x << ' ' << y << '\n';
+    std::cout << "map4:\n";
+    for (auto& [x, y] : map4) std::cout << x << ' ' << y << '\n';
+
 }
 

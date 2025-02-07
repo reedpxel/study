@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstdint>
+#include <algorithm>
 
 struct nullopt_t {};
 nullopt_t nullopt;
@@ -216,7 +217,7 @@ public:
         return *reinterpret_cast<T*>(arr) <=> *reinterpret_cast<T*>(other.arr);
     }
 protected:
-    char arr[alignof(T)];
+    char arr[std::max(sizeof(T), alignof(T)];
     bool initialized = false;
 };
 
