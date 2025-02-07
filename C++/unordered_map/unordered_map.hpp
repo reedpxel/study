@@ -5,9 +5,6 @@
 #include <cmath>
 #include "hash_functor.hpp"
 #include "equal_functor.hpp"
-#include <iostream> // TO DO: remove
-
-// TO DO: set public to private/protected where needed
 
 template <typename T>
 bool isNullptr(T* ptr) 
@@ -30,7 +27,6 @@ template <
     typename Alloc = std::allocator<pair<const Key, Value>>
 > class unordered_map
 {
-public: // TO DO: remove
     struct BaseNode
     {
         BaseNode* next;
@@ -118,7 +114,7 @@ public: // TO DO: remove
             return BaseIterator<true>(nodePtr);
         }
         friend class unordered_map;
-    public: // TO DO: set private
+    private:
         node_pointer_t nodePtr; 
     };
 
@@ -630,7 +626,7 @@ public:
         std::swap(maxLoadFactor, other.maxLoadFactor);
         std::swap(fakeNode, other.fakeNode);
     }
-public: // TO DO: remove
+private:
     size_t countArrSize(size_t oldArrSize) const noexcept
     {
         if (!oldArrSize) return 7;
@@ -874,8 +870,7 @@ public: // TO DO: remove
         }
         return keyFound ? line : &fakeNode;
     }
-    
-public:
+private:    
     ArrAlloc arrAlloc;
     NodeAlloc nodeAlloc;
     size_t arrSz;
