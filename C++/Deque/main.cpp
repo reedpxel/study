@@ -125,13 +125,19 @@ struct Test
 size_t Test::count = 0;
 size_t Test::exceptionCount = 50;
 
+struct CopyMove
+{
+    CopyMove() { std::cout << "Ctor" << std::endl; }
+    CopyMove(const CopyMove&) noexcept { std::cout << "Copy" << std::endl; }
+    CopyMove(CopyMove&&) { std::cout << "Move" << std::endl; }
+    ~CopyMove() { std::cout << "Dtor" << std::endl; }
+};
+
 int main()
 {
-    deque<int> d1;
-    for (size_t i = 0; i < 32; ++i) d1.push_front(i);
-    for (size_t i = 0; i < 32; ++i) d1.push_back(i);
-    for (auto x : d1) std::cout << x << ' ';
-    std::cout << std::endl;
+    deque<CopyMove> deque1;
+    for (int i = 0; i < 5; ++i) deque1.emplace_back();
+    deque1.insert(deque1.begin(), CopyMove());
 }
 
 // shrink_to_fit and resize tests

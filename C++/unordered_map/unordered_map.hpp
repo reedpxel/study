@@ -129,14 +129,14 @@ public:
     using mapped_type = Value;
     using value_type = pair<const Key, Value>;
     using size_type = size_t;
-    using difference_type = uint64_t;
+    using difference_type = int64_t;
     using hasher = Hash;
     using key_equal = KeyEqual;
     using allocator_type = Alloc;
     using reference = value_type&;
     using const_reference = const value_type&;
-    using pointer = std::allocator_traits<Alloc>::pointer;
-    using const_pointer = std::allocator_traits<Alloc>::const_pointer;
+    using pointer = typename std::allocator_traits<Alloc>::pointer;
+    using const_pointer = typename std::allocator_traits<Alloc>::const_pointer;
     using iterator = BaseIterator<false>;
     using const_iterator = BaseIterator<true>;
 
@@ -150,7 +150,7 @@ public:
             , arr(nullptr)
             , sz(0)
             , maxLoadFactor(1)
-            , fakeNode(nullptr)
+            , fakeNode{nullptr}
     {
         fakeNode.next = &fakeNode;
     }
@@ -168,7 +168,7 @@ public:
             , arr(ArrAllocTraits::allocate(arrAlloc, arrSz))
             , sz(0)
             , maxLoadFactor(1)
-            , fakeNode(nullptr)
+            , fakeNode{nullptr}
             , hash_(hash_)
             , equal_(keyEqual)
     {
@@ -212,7 +212,7 @@ public:
             , arr(ArrAllocTraits::allocate(arrAlloc, arrSz))
             , sz(0)
             , maxLoadFactor(other.maxLoadFactor)
-            , fakeNode(nullptr)
+            , fakeNode{nullptr}
     {
         if (!other.sz)
         {
@@ -232,7 +232,7 @@ public:
             , arr(other.arr)
             , sz(other.sz)
             , maxLoadFactor(other.maxLoadFactor)
-            , fakeNode(other.fakeNode.next)
+            , fakeNode{other.fakeNode.next}
     {
         moveCtorChanges(std::forward<unordered_map>(other));
     }

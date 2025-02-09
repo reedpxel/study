@@ -5,7 +5,6 @@
 #include <exception>
 #include <iterator>
 #include <cmath>
-
 #define ELEMENTS_IN_BUCKET 32ull
 #define BUCKET_RESERVE 3ull
 
@@ -158,6 +157,14 @@ protected:
         T* outerPtr;
     };
 public:
+    using value_type = T;
+    using allocator_type = Alloc;
+    using size_type = size_t;
+    using difference_type = int64_t;
+    using reference = value_type&;
+    using const_reference = const value_type&;
+    using pointer = std::allocator_traits<Alloc>::pointer;
+    using const_pointer = std::allocator_traits<Alloc>::const_pointer;
     using iterator = BaseIterator<false>;
     using const_iterator = BaseIterator<true>;
     using reverse_iterator = std::reverse_iterator<iterator>;
@@ -247,17 +254,39 @@ public:
         if (sz) copyBuffer(other);
     }
 
-    deque(const deque& other) 
+    deque(const deque& other) noexcept
             : deque(other, 
                 AllocTraits::propagate_on_container_copy_assignment::value ?
                 other.alloc :
                 Alloc()) 
     {}
 
+    deque(deque&& other, const Alloc& alloc_) noexcept
+            : alloc(alloc_)
+            , innerAlloc(alloc_)
+            , sz(other.sz)
+            , bucketCount(other.bucketCount)
+            , innerBuffer(other.innerBuffer)
+            , itBegin(other.itBegin)
+            , itEnd(other.itEnd)
+    {
+        other.sz = 0;
+        other.bucketCount = 0;
+        other.innerBuffer = nullptr;
+        other.itBegin = other.itEnd = iterator();
+    }
+
+    deque(deque&& other) noexcept
+            : deque(std::move(other), AllocTraits::
+                propagate_on_container_move_assignment::value ? 
+                std::move(other.alloc) : Alloc())
+    {}
+
     ~deque() { clearHelper(); }
 
     deque& operator=(const deque& other)
     {
+        if (this == &other) return *this;
         if (!other.sz)
         {
             clearHelper();
@@ -309,6 +338,26 @@ public:
                     oldInnerBuffer,
                     oldItBegin,
                     oldItEnd);
+        return *this;
+    }
+
+    deque& operator=(deque&& other) noexcept
+    {
+        if (this == &other) return *this;
+        clear();
+        if (AllocTraits::propagate_on_container_move_assignment::value)
+        {
+            alloc = std::move(other.alloc);
+            innerAlloc = std::move(other.innerAlloc);
+        }
+        sz = other.sz;
+        bucketCount = other.bucketCount;
+        innerBuffer = other.innerBuffer;
+        itBegin = other.itBegin;
+        itEnd = other.itEnd;
+        other.sz = other.bucketCount = 0;
+        other.innerBuffer = nullptr;
+        other.itBegin = other.itEnd = iterator();
         return *this;
     }
 
@@ -392,13 +441,15 @@ public:
     }
 
     Alloc get_allocator() const noexcept { return alloc; }
+    void push_back(const T& value) { emplace_back(value); }
+    void push_back(T&& value) { emplace_back(std::move(value)); }
 
-    void push_back(const T& value)
+    template <typename... Args>
+    reference emplace_back(Args&&... args)
     {
         if (!innerBuffer) [[unlikely]]
         {
-            pushInEmptyContainer(value);
-            return;
+            return pushInEmptyContainer(std::forward<Args>(args)...);
         }
         if (itEnd.innerPtr - innerBuffer == bucketCount - 1) [[unlikely]]
         {
@@ -423,7 +474,7 @@ public:
             try
             {
                 AllocTraits::construct(alloc, newInnerBuffer[bucketCount - 1],
-                    value);
+                    std::forward<Args>(args)...);
             } catch (...) { // exc tested
                 AllocTraits::deallocate(alloc, newInnerBuffer[bucketCount - 1],
                     ELEMENTS_IN_BUCKET);
@@ -435,11 +486,12 @@ public:
             ++sz;
             itEnd = iterator(newInnerBuffer + bucketCount - 1,
                 newInnerBuffer[bucketCount - 1] + 1);
+            size_t oldBucketCount = bucketCount;
             bucketCount = newBucketCount;
             itBegin.innerPtr =
                 newInnerBuffer + (itBegin.innerPtr - innerBuffer);
             innerBuffer = newInnerBuffer;
-            return;
+            return innerBuffer[oldBucketCount - 1][0];
         } 
         if (!bucketAllocated(itEnd.innerPtr - innerBuffer)) [[unlikely]]
         {
@@ -448,7 +500,8 @@ public:
             try
             {
                 itEnd.outerPtr = *itEnd.innerPtr;
-                AllocTraits::construct(alloc, itEnd.outerPtr, value);
+                AllocTraits::construct(alloc, itEnd.outerPtr, 
+                    std::forward<Args>(args)...);
                 ++sz;
                 ++itEnd.outerPtr;
             } catch (...) { // exc tested
@@ -460,11 +513,13 @@ public:
                 itEnd.outerPtr = nullptr;
                 throw;
             }
-            return;
+            return *(itEnd.outerPtr - 1);
         }
-        AllocTraits::construct(alloc, itEnd.outerPtr, value);
+        AllocTraits::construct(alloc, itEnd.outerPtr, 
+            std::forward<Args>(args)...);
         ++itEnd;
         ++sz;
+        return *(itEnd.outerPtr - 1);
     }
 
     // calling pop_back on an empty container is UB, end() iterator invalidates
@@ -475,12 +530,15 @@ public:
         --sz;
     }
 
-    void push_front(const T& value)
+    void push_front(const T& value) { emplace_front(value); }
+    void push_front(T&& value) { emplace_front(std::move(value)); }
+
+    template <typename... Args>
+    reference emplace_front(Args&&... args)
     {
         if (!innerBuffer) [[unlikely]]
         {
-            pushInEmptyContainer(value);
-            return;
+            return pushInEmptyContainer(std::forward<Args>(args)...);
         }
         if (itBegin.innerPtr == innerBuffer &&
             itBegin.outerPtr == *innerBuffer) [[unlikely]]
@@ -506,7 +564,8 @@ public:
                 ELEMENTS_IN_BUCKET - 1;
             try
             {
-                AllocTraits::construct(alloc, itBegin.outerPtr, value);
+                AllocTraits::construct(alloc, itBegin.outerPtr, 
+                    std::forward<Args>(args)...);
             } catch (...) { // exc tested
                 AllocTraits::deallocate(alloc, 
                     newInnerBuffer[bucketsAllocated - 1], ELEMENTS_IN_BUCKET);
@@ -521,7 +580,7 @@ public:
             itEnd.innerPtr = newInnerBuffer + 2 * bucketsAllocated - 1;
             InnerAllocTraits::deallocate(innerAlloc, innerBuffer, bucketCount);
             innerBuffer = newInnerBuffer;
-            return;
+            return *itBegin;
         }
         if (*itBegin.innerPtr == itBegin.outerPtr &&
             !bucketAllocated(itBegin.innerPtr - innerBuffer - 1)) [[unlikely]]
@@ -531,7 +590,8 @@ public:
             try
             {
                 --itBegin;
-                AllocTraits::construct(alloc, itBegin.outerPtr, value);
+                AllocTraits::construct(alloc, itBegin.outerPtr, 
+                    std::forward<Args>(args)...);
                 ++sz;
             } catch (...) { // exc tested
                 ++itBegin;
@@ -541,17 +601,19 @@ public:
                 innerBuffer[itBegin.innerPtr - innerBuffer - 1] = nullptr;
                 throw;
             }
-            return;
+            return *itBegin;
         }
         --itBegin;
         try
         {
-            AllocTraits::construct(alloc, itBegin.outerPtr, value);
+            AllocTraits::construct(alloc, itBegin.outerPtr, 
+                std::forward<Args>(args)...);
         } catch (...) { // exc tested
             ++itBegin;
             throw;
         }
         ++sz;
+        return *itBegin;
     }
 
     void pop_front() noexcept
@@ -577,6 +639,10 @@ public:
     //      - operator=(const T&)
     //      - operator=(T&&)
     //      - any iterator methods
+    // UPD: the method gives strong exception guarantee, if T(const T&) is
+    // noexcept. If it is true and T(T&&) is also noexcept, move ctor is used 
+    // to move objects. Otherwise, objects are moved, but the method does not 
+    // give strong exception guarantee
     iterator insert(iterator pos, const T& value = T())
     {
         if (!innerBuffer) [[unlikely]]
@@ -622,7 +688,17 @@ public:
         if (!pos.outerPtr) pos.outerPtr = itEnd.outerPtr;
         for (iterator it = itEnd; it != pos; --it)
         {
-            AllocTraits::construct(alloc, it.outerPtr, *(it - 1));
+            if constexpr ((noexcept(T(std::declval<T>())) || 
+                noexcept(T(std::declval<const T>()))) && 
+                !noexcept(T(std::move(std::declval<T>()))))
+            {
+                // exception safe copying
+                AllocTraits::construct(alloc, it.outerPtr, *(it - 1));
+            } else {
+                // calling move ctor, which may or may not be noexcept
+                AllocTraits::construct(alloc, it.outerPtr, 
+                    std::move(*(it - 1)));
+            }
             AllocTraits::destroy(alloc, (it - 1).outerPtr);
         }
         AllocTraits::construct(alloc, pos.outerPtr, value);
@@ -631,13 +707,13 @@ public:
         return pos;
     }
 
-    // gives the same exception safety guarantee as insert
+    // gives the same exception safety guarantee as insert (before UPD)
     iterator erase(iterator pos)
     {
         AllocTraits::destroy(alloc, pos.outerPtr);
         for (iterator it = pos + 1; it != itEnd; ++it)
         {
-            AllocTraits::construct(alloc, (it - 1).outerPtr, *it);
+            AllocTraits::construct(alloc, (it - 1).outerPtr, std::move(*it));
             AllocTraits::destroy(alloc, it.outerPtr);
         }
         --sz;
@@ -882,7 +958,8 @@ public:
     }
 
 private:
-    void pushInEmptyContainer(const T& value)
+    template <typename... Args>
+    reference pushInEmptyContainer(Args&&... args)
     {
         innerBuffer = InnerAllocTraits::allocate(
             innerAlloc, 2 + 2 * BUCKET_RESERVE); // exc tested
@@ -898,8 +975,8 @@ private:
         }
         try
         {
-            AllocTraits::construct(
-                alloc, innerBuffer[BUCKET_RESERVE], value);
+            AllocTraits::construct(alloc, innerBuffer[BUCKET_RESERVE], 
+                std::forward<Args>(args)...);
         } catch (...) { // exc tested
             AllocTraits::deallocate(
                 alloc, innerBuffer[BUCKET_RESERVE], ELEMENTS_IN_BUCKET);
@@ -913,6 +990,7 @@ private:
         itBegin = iterator(
             innerBuffer + BUCKET_RESERVE, innerBuffer[BUCKET_RESERVE]);
         itEnd = itBegin + 1;
+        return innerBuffer[BUCKET_RESERVE][0];
     }
 
     bool bucketAllocated(size_t i) const noexcept
