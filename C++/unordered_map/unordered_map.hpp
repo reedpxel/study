@@ -3,9 +3,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
 #include "hash_functor.hpp"
 #include "equal_functor.hpp"
 
+#ifndef IS_NULLPTR
+#define IS_NULLPTR
 template <typename T>
 bool isNullptr(T* ptr) 
 {
@@ -15,6 +18,7 @@ bool isNullptr(T* ptr)
     return ptr == nullptr;
 #endif
 }
+#endif
 
 using std::pair;
 using std::make_pair;
@@ -760,6 +764,7 @@ private:
         size_t sz_,
         BaseNode* fakeNodeNext_) noexcept
     {
+        if (isNullptr(arr_)) return;
         ArrAllocTraits::deallocate(arrAlloc_, arr_, arrSz_);
         if (!sz_) return;
         for (Node* begin_ = static_cast<Node*>(fakeNodeNext_); 

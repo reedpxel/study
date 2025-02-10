@@ -8,6 +8,8 @@
 #define ELEMENTS_IN_BUCKET 32ull
 #define BUCKET_RESERVE 3ull
 
+#ifndef IS_NULLPTR
+#define IS_NULLPTR
 template <typename T>
 bool isNullptr(T* ptr) 
 {
@@ -17,6 +19,7 @@ bool isNullptr(T* ptr)
     return ptr == nullptr;
 #endif
 }
+#endif
 
 template <typename T, typename Alloc = std::allocator<T>>
 class deque

@@ -116,6 +116,5 @@ int main()
     for (auto& [x, y] : map3) std::cout << x << ' ' << y << '\n';
     std::cout << "map4:\n";
     for (auto& [x, y] : map4) std::cout << x << ' ' << y << '\n';
-
 }
 
