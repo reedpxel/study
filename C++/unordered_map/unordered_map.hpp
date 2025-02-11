@@ -145,11 +145,8 @@ public:
     using const_iterator = BaseIterator<true>;
 
     unordered_map(const Alloc& alloc = Alloc())
-            : arrAlloc(ArrAllocTraits::propagate_on_container_copy_assignment::
-                value ? alloc : Alloc())
-            , nodeAlloc(NodeAllocTraits::
-                propagate_on_container_copy_assignment::value ? alloc : 
-                Alloc())
+            : arrAlloc(checkAllocPropagateCopy(alloc))
+            , nodeAlloc(checkAllocPropagateCopy(alloc))
             , arrSz(0)
             , arr(nullptr)
             , sz(0)
@@ -163,11 +160,8 @@ public:
                            const Hash& hash_ = Hash(),
                            const KeyEqual& keyEqual = KeyEqual(),
                            const Alloc& alloc = Alloc())
-            : arrAlloc(ArrAllocTraits::propagate_on_container_copy_assignment::
-                value ? alloc : Alloc())
-            , nodeAlloc(NodeAllocTraits::
-                propagate_on_container_copy_assignment::value ? alloc : 
-                Alloc())
+            : arrAlloc(checkAllocPropagateCopy(alloc))
+            , nodeAlloc(checkAllocPropagateCopy(alloc))
             , arrSz(bucket_count)
             , arr(ArrAllocTraits::allocate(arrAlloc, arrSz))
             , sz(0)
@@ -207,11 +201,8 @@ public:
     }
 
     unordered_map(const unordered_map& other)
-            : arrAlloc(ArrAllocTraits::propagate_on_container_copy_assignment::
-                value ? other.arrAlloc : ArrAlloc())
-            , nodeAlloc(NodeAllocTraits::
-                propagate_on_container_copy_assignment::value ?
-                other.nodeAlloc : NodeAlloc())
+            : arrAlloc(checkAllocPropagateCopy(other.alloc))
+            , nodeAlloc(checkAllocPropagateCopy(other.alloc))
             , arrSz(other.arrSz)
             , arr(ArrAllocTraits::allocate(arrAlloc, arrSz))
             , sz(0)
@@ -227,11 +218,8 @@ public:
     }
 
     unordered_map(unordered_map&& other)
-            : arrAlloc(ArrAllocTraits::propagate_on_container_move_assignment::
-                value ? std::move(other.arrAlloc) : ArrAlloc())
-            , nodeAlloc(NodeAllocTraits::
-                propagate_on_container_move_assignment::value ? std::move(
-                other.nodeAlloc) : NodeAlloc())
+            : arrAlloc(checkAllocPropagateMove(other.alloc))
+            , nodeAlloc(checkAllocPropagateMove(other.alloc))
             , arrSz(other.arrSz)
             , arr(other.arr)
             , sz(other.sz)
@@ -247,12 +235,8 @@ public:
         if (isNullptr(other.arr))
         {
             clearHelper();
-            arrAlloc = ArrAllocTraits::
-                propagate_on_container_copy_assignment::value ? 
-                other.arrAlloc : ArrAlloc();
-            nodeAlloc = NodeAllocTraits::
-                propagate_on_container_copy_assignment::value ?
-                other.nodeAlloc : NodeAlloc();
+            arrAlloc = checkAllocPropagateCopy(other.arrAlloc);
+            nodeAlloc = checkAllocPropagateCopy(other.nodeAlloc);
             maxLoadFactor = other.maxLoadFactor;
             return *this;
         }
@@ -263,12 +247,8 @@ public:
         size_t oldSz = sz;
         double oldMaxLoadFactor = maxLoadFactor;
         BaseNode* oldFakeNodeNext = fakeNode.next;
-        arrAlloc = ArrAllocTraits::
-            propagate_on_container_copy_assignment::value ? 
-            other.arrAlloc : ArrAlloc();
-        nodeAlloc = NodeAllocTraits::
-            propagate_on_container_copy_assignment::value ?
-            other.nodeAlloc : NodeAlloc();
+        arrAlloc = checkAllocPropagateCopy(other.arrAlloc);
+        nodeAlloc = checkAllocPropagateCopy(other.nodeAlloc);
         arrSz = other.arrSz;
         sz = 0;
         maxLoadFactor = other.maxLoadFactor;
@@ -300,12 +280,8 @@ public:
     {
         if (&other == this) return *this;
         deallocateNodesAndArr();
-        arrAlloc = ArrAllocTraits::
-            propagate_on_container_move_assignment::value ? 
-            std::move(other.arrAlloc) : ArrAlloc();
-        nodeAlloc = NodeAllocTraits::
-            propagate_on_container_move_assignment::value ?
-            std::move(other.nodeAlloc) : NodeAlloc();
+        arrAlloc = checkAllocPropagateMove(other.arrAlloc);
+        nodeAlloc = checkAllocPropagateMove(other.nodeAlloc);
         arrSz = other.arrSz;
         arr = other.arr;
         sz = other.sz;
@@ -875,6 +851,29 @@ private:
         }
         return keyFound ? line : &fakeNode;
     }
+
+    constexpr Alloc checkAllocPropagateCopy(const Alloc& other) const noexcept
+    {
+        if constexpr (std::allocator_traits<Alloc>::
+            propagate_on_container_copy_assignment::value)
+        {
+            return other;
+        } else {
+            return Alloc();
+        }
+    }
+
+    constexpr Alloc checkAllocPropagateMove(Alloc&& other) const noexcept
+    {
+        if constexpr (std::allocator_traits<Alloc>::
+            propagate_on_container_move_assignment::value)
+        {
+            return other;
+        } else {
+            return Alloc();
+        }
+    }
+
 private:    
     ArrAlloc arrAlloc;
     NodeAlloc nodeAlloc;

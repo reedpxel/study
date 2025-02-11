@@ -55,13 +55,14 @@ protected:
 
         bool operator==(const BaseIterator& other) const noexcept
         {
-            return innerPtr == other.innerPtr && outerPtr == other.outerPtr ||
-               isNullptr(*innerPtr); 
+            return (innerPtr == other.innerPtr && outerPtr == other.outerPtr)
+                || isNullptr(*innerPtr); 
         }
 
         BaseIterator& operator++() noexcept
         {
-            if (outerPtr - *innerPtr >= ELEMENTS_IN_BUCKET - 1)
+            if (static_cast<size_t>(outerPtr - *innerPtr) >= 
+                ELEMENTS_IN_BUCKET - 1)
             {
                 ++innerPtr;
                 if (!isNullptr(*innerPtr)) [[likely]]
@@ -257,11 +258,8 @@ public:
         if (sz) copyBuffer(other);
     }
 
-    deque(const deque& other) noexcept
-            : deque(other, 
-                AllocTraits::propagate_on_container_copy_assignment::value ?
-                other.alloc :
-                Alloc()) 
+    deque(const deque& other)
+            : deque(other, checkAllocPropagateCopy(other.alloc))
     {}
 
     deque(deque&& other, const Alloc& alloc_) noexcept
@@ -280,9 +278,7 @@ public:
     }
 
     deque(deque&& other) noexcept
-            : deque(std::move(other), AllocTraits::
-                propagate_on_container_move_assignment::value ? 
-                std::move(other.alloc) : Alloc())
+            : deque(std::move(other), checkAllocPropagateMove(other.alloc))
     {}
 
     ~deque() { clearHelper(); }
@@ -305,12 +301,8 @@ public:
         InnerAlloc oldInnerAlloc = innerAlloc;
         if constexpr (!AllocTraits::is_always_equal::value)
         {
-            alloc = 
-                AllocTraits::propagate_on_container_copy_assignment::value ?
-                    other.alloc : Alloc();
-            innerAlloc = 
-                InnerAllocTraits::propagate_on_container_copy_assignment::value 
-                    ? other.innerAlloc : InnerAlloc();
+            alloc = checkAllocPropagateCopy(other.alloc);
+            innerAlloc = checkAllocPropagateCopy(other.alloc);
         }
         size_t oldSz = sz;
         size_t oldBucketCount = bucketCount;
@@ -348,7 +340,8 @@ public:
     {
         if (this == &other) return *this;
         clear();
-        if (AllocTraits::propagate_on_container_move_assignment::value)
+        if constexpr (AllocTraits::propagate_on_container_move_assignment::
+            value)
         {
             alloc = std::move(other.alloc);
             innerAlloc = std::move(other.innerAlloc);
@@ -454,14 +447,15 @@ public:
         {
             return pushInEmptyContainer(std::forward<Args>(args)...);
         }
-        if (itEnd.innerPtr - innerBuffer == bucketCount - 1) [[unlikely]]
+        if (static_cast<size_t>(itEnd.innerPtr - innerBuffer) == 
+            bucketCount - 1) [[unlikely]]
         {
             T** newInnerBuffer = InnerAllocTraits::allocate(innerAlloc,
                 itEnd.innerPtr - itBegin.innerPtr + bucketCount);
             size_t newBucketCount = 
                 itEnd.innerPtr - itBegin.innerPtr + bucketCount;
             for (size_t i = itBegin.innerPtr - innerBuffer;
-                i <= itEnd.innerPtr - innerBuffer; ++i)
+                i <= static_cast<size_t>(itEnd.innerPtr - innerBuffer); ++i)
             {
                 newInnerBuffer[i] = innerBuffer[i];
             }
@@ -1178,6 +1172,28 @@ private:
         }
         // 3. Initialize itBegin(earlier) and itEnd
         itEnd = itBegin + sz;
+    }
+
+    constexpr Alloc checkAllocPropagateCopy(const Alloc& other) const noexcept
+    {
+        if constexpr (std::allocator_traits<Alloc>::
+            propagate_on_container_copy_assignment::value)
+        {
+            return other;
+        } else {
+            return Alloc();
+        }
+    }
+
+    constexpr Alloc checkAllocPropagateMove(Alloc&& other) const noexcept
+    {
+        if constexpr (std::allocator_traits<Alloc>::
+            propagate_on_container_move_assignment::value)
+        {
+            return other;
+        } else {
+            return Alloc();
+        }
     }
 
 private:
