@@ -35,7 +35,8 @@ public:
             , deleter(deleter)
     {}
 
-    ~UniquePtr() { deleter(ptr); }
+    // in unique_ptr deleter is called only if ptr != nullptr
+    ~UniquePtr() { if (ptr) deleter(ptr); }
 
     UniquePtr(const UniquePtr&) = delete;
     UniquePtr& operator=(const UniquePtr&) = delete;
