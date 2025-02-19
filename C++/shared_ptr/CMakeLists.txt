@@ -9,6 +9,7 @@ add_compile_options(-fsanitize=address)
 add_link_options(-fsanitize=address)
 
 add_executable(shared_ptr
+    smart_pointer_base.hpp
     shared_ptr.hpp
     weak_ptr.hpp
     main.cpp) 
