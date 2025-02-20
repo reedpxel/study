@@ -96,6 +96,15 @@ public:
         if (!isNullptr(pObject)) SmartPointerBase<T>::incrementSharedCount();
     }
 
+    explicit shared_ptr(const weak_ptr<T>& other) noexcept
+            : SmartPointerBase<T>{nullptr, nullptr}
+    {
+        if (other.expired()) return;
+        pObject = other.pObject;
+        pCtrlBlock = other.pCtrlBlock;
+        SmartPointerBase<T>::incrementSharedCount();
+    }
+
     shared_ptr(shared_ptr&& other) noexcept
             : SmartPointerBase<T>{other.pObject, other.pCtrlBlock}
     {
@@ -208,6 +217,7 @@ public:
     T* get() const noexcept { return pObject; }
     T& operator*() const noexcept { return *pObject; }
     T* operator->() const noexcept { return pObject; }
+
     size_t use_count() const noexcept 
     { 
         return SmartPointerBase<T>::getSharedCount(); 
@@ -219,13 +229,16 @@ public:
     }
 
     template <typename U>
-    bool owner_before(const shared_ptr& other) const noexcept
+    bool owner_before(const shared_ptr<U>& other) const noexcept
     {
         return pObject == static_cast<T*>(other.pObject);
     }
 
-//    template <typename U>
-//    bool owner_before(const weak_pObject<U>& other) const noexcept;
+    template <typename U>
+    bool owner_before(const weak_ptr<U>& other) const noexcept
+    {
+        return pObject == static_cast<T*>(other.pObject);
+    }
 
     template <typename U, typename... Args>
     friend shared_ptr<U> make_shared(Args&&... args);

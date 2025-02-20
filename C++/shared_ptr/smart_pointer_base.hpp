@@ -57,5 +57,5 @@ public: // TO DO: set private
     }
 };
 
-#endif
+#endif // SHARED_PTR_H
 

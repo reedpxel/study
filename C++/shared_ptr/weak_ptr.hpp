@@ -38,7 +38,101 @@ public:
         other.pCtrlBlock = nullptr;
     }
 
-    ~weak_ptr()
+    ~weak_ptr() { dtorHelper(); }
+
+    weak_ptr& operator=(const weak_ptr& other) noexcept
+    {
+        return operatorEqualHelper(other);
+    }
+
+    weak_ptr& operator=(const shared_ptr<T>& other) noexcept
+    {
+        return operatorEqualHelper(other);
+    }
+
+    weak_ptr& operator=(weak_ptr&& other) noexcept
+    {
+        if (this != &other && pObject != other.pObject)
+        {
+            dtorHelper();
+            pObject = other.pObject;
+            pCtrlBlock = other.pCtrlBlock;
+            other.pObject = nullptr;
+            other.pCtrlBlock = nullptr;
+        }
+        return *this;
+    }
+
+    void reset() noexcept
+    {
+        dtorHelper();
+        pCtrlBlock = nullptr;
+        pObject = nullptr;
+    }
+
+    void swap(weak_ptr& other) noexcept
+    {
+        std::swap(pObject, other.pObject);
+        std::swap(pCtrlBlock, other.pCtrlBlock);
+    }
+
+    size_t use_count() const noexcept
+    // amount of shared_ptrs that point to the owned object
+    {         
+        return SmartPointerBase<T>::getSharedCount(); 
+    }
+ 
+    bool expired() const noexcept // check whether object is deleted
+    {
+        return !use_count();
+    }
+
+    shared_ptr<T> lock() const noexcept 
+    // creates a shared_ptr that manages the object.
+    {
+        return expired() ? shared_ptr<T>() : shared_ptr<T>(*this);
+    }
+
+    template <typename U>
+    bool owner_before(const weak_ptr<U>& other) const noexcept
+    {
+        return pObject == static_cast<T*>(other.pObject);
+    }
+ 
+    template <typename U>
+    bool owner_before(const shared_ptr<U>& other) const noexcept
+    {
+        return pObject == static_cast<T*>(other.pObject);
+    }
+public: // TO DO: make private
+    void incrementWeakCount() noexcept
+    {
+        if (isNullptr(pCtrlBlock))
+        {
+            ++(SmartPointerBase<T>::getCtrlBlockWithObject()->weak_count);
+        } else {
+            ++pCtrlBlock->weak_count;
+        }
+    }
+
+    void decrementWeakCount() noexcept
+    {
+        if (isNullptr(pCtrlBlock))
+        {
+            --(SmartPointerBase<T>::getCtrlBlockWithObject()->weak_count);
+        } else {
+            --pCtrlBlock->weak_count;
+        }
+    }
+
+    size_t getWeakCount() const noexcept
+    {
+        return isNullptr(pCtrlBlock) ? 
+            SmartPointerBase<T>::getCtrlBlockWithObject()->weak_count :
+            pCtrlBlock->weak_count;
+    }
+
+    void dtorHelper() noexcept
     {
         if (isNullptr(pObject))
         {
@@ -74,48 +168,25 @@ public:
             }
         }
     }
-    weak_ptr& operator=(const weak_ptr& other) noexcept;
-    weak_ptr& operator=(const shared_ptr<T>& other) noexcept;
-    weak_ptr& operator=(weak_ptr&& other) noexcept;
-    void reset() noexcept;
-    void swap(weak_ptr& other) noexcept;
-    size_t use_count() const noexcept; // amount of shared_ptrs that point to
-                                       // the owned object
-    bool expired() const noexcept; // check whether object is deleted
-    shared_ptr<T> lock() const noexcept; // creates a shared_ptr that manages 
-                                         // the object. Returns expired ? 
-                                         // shared_ptr() : shared_ptr(*this)
-    template <typename U>
-    bool owner_before(const weak_ptr& other) const noexcept;
- 
-    template <typename U>
-    bool owner_before(const shared_ptr<T>& other) const noexcept;
-public: // TO DO: make private
-    void incrementWeakCount() noexcept
-    {
-        if (isNullptr(pCtrlBlock))
-        {
-            ++(SmartPointerBase<T>::getCtrlBlockWithObject()->weak_count);
-        } else {
-            ++pCtrlBlock->weak_count;
-        }
-    }
 
-    void decrementWeakCount() noexcept
+    template <typename U> // to pass shared_ptr and weak_ptr as an argument
+    weak_ptr& operatorEqualHelper(const U& other) noexcept
     {
-        if (isNullptr(pCtrlBlock))
-        {
-            --(SmartPointerBase<T>::getCtrlBlockWithObject()->weak_count);
-        } else {
-            --pCtrlBlock->weak_count;
+        bool condition = (pObject != other.pObject);
+        if constexpr (std::is_same_v<weak_ptr<T>, U>)
+        { 
+            // *this cannot be passed as an argument, if U is shared_ptr, but 
+            // can be passed if U is weak_ptr
+            condition = condition && (this != &other);
         }
-    }
-
-    size_t getWeakCount() const noexcept
-    {
-        return isNullptr(pCtrlBlock) ? 
-            SmartPointerBase<T>::getCtrlBlockWithObject()->weak_count :
-            pCtrlBlock->weak_count;
+        if (condition)
+        {
+            dtorHelper();
+            pObject = other.pObject;
+            pCtrlBlock = other.pCtrlBlock;
+            incrementWeakCount();
+        }
+        return *this;
     }
 };
 
