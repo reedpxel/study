@@ -2,21 +2,60 @@
 
 #include <iostream>
 
-int main()
-{
-    shared_ptr<std::string> shptr(new std::string("abcd"));
-    weak_ptr<std::string> wptr = shptr;
-    weak_ptr<std::string> wptr2;
-    std::cout << wptr2.use_count() << ' ' << wptr.use_count() << ' ';
-    shared_ptr<std::string> shptr2 = wptr.lock();
-    std::cout << wptr.use_count() << std::endl;
-    auto shptr3 = wptr2.lock();
-    std::cout << 
-        shptr.owner_before(shptr2) << ' ' <<
-        shptr.owner_before(wptr) << ' ' <<
-        wptr2.owner_before(wptr) << ' ' << 
-        wptr2.owner_before(shptr3) << std::endl; // 1 1 0 1
+void* operator new(size_t n)
+{ 
+    void* ret = malloc(n);
+    std::cout << n << " bytes allocated at " << ret << std::endl;
+    return ret;
 }
+
+void operator delete(void* pObject)
+{
+    std::cout << "delete at " << pObject << std::endl;
+    free(pObject);
+}
+
+void operator delete(void* pObject, size_t n) 
+{ 
+    std::cout << "delete " << n << " bytes at " << pObject << std::endl;
+    free(pObject); 
+}
+
+struct Base 
+{
+    int b;
+};
+
+struct Derived : Base 
+{
+    int d;
+};
+
+struct Mom
+{
+    int m;
+    ~Mom() { std::cout << "~Mom" << std::endl; }
+};
+
+struct Dad
+{
+    int d;
+    ~Dad() { std::cout << "~Dad" << std::endl; }
+};
+
+struct Son : Mom, Dad
+{
+    int s;
+    ~Son() { std::cout << "~Son" << std::endl; }
+};
+
+//int main()
+//{
+//    shared_ptr<Son> shptr = make_shared<Son>(Son{1, 2, 3});
+//    shared_ptr<Dad> shptr2 = shptr;
+//    std::cout << shptr.get() << ' ' << shptr2.get() << std::endl;
+//    shptr.reset();
+//}
 
 //int main()
 //{
@@ -70,33 +109,33 @@ int main()
 //    std::cout << "Test 4 passed" << std::endl;
 //}
 
-//int main()
-//{
-//    {
-//        shared_ptr<std::string> shptr;
-//        weak_ptr<std::string> wptr = shptr;
-//    }
-//    std::cout << "Test 1 passed" << std::endl;
-//    {
-//        shared_ptr<std::string> shptr(new std::string("abcde"));
-//        weak_ptr<std::string> wptr = shptr;
-//        shptr.reset();
-//    }
-//    std::cout << "Test 2 passed" << std::endl;
-//    {
-//        shared_ptr<std::string> shptr = make_shared<std::string>("abcd");
-//        weak_ptr<std::string> wptr1 = shptr;
-//        weak_ptr<std::string> wptr2 = shptr;
-//        weak_ptr<std::string> wptr3 = wptr1;
-//        shptr.reset();
-//    }
-//    std::cout << "Test 3 passed" << std::endl;
-//    {
-//        shared_ptr<std::string> shptr1(new std::string("abccd"));
-//        shared_ptr<std::string> shptr2 = shptr1;
-//        weak_ptr<std::string> wptr1 = shptr1;
-//        weak_ptr<std::string> wptr2 = wptr1;
-//    }
-//    std::cout << "Test 4 passed" << std::endl;
-//}
-//
+int main()
+{
+    {
+        shared_ptr<std::string> shptr;
+        weak_ptr<std::string> wptr = shptr;
+    }
+    std::cout << "Test 1 passed" << std::endl;
+    {
+        shared_ptr<std::string> shptr(new std::string("abcde"));
+        weak_ptr<std::string> wptr = shptr;
+        shptr.reset();
+    }
+    std::cout << "Test 2 passed" << std::endl;
+    {
+        shared_ptr<std::string> shptr = make_shared<std::string>("abcd");
+        weak_ptr<std::string> wptr1 = shptr;
+        weak_ptr<std::string> wptr2 = shptr;
+        weak_ptr<std::string> wptr3 = wptr1;
+        shptr.reset();
+    }
+    std::cout << "Test 3 passed" << std::endl;
+    {
+        shared_ptr<std::string> shptr1(new std::string("abccd"));
+        shared_ptr<std::string> shptr2 = shptr1;
+        weak_ptr<std::string> wptr1 = shptr1;
+        weak_ptr<std::string> wptr2 = wptr1;
+    }
+    std::cout << "Test 4 passed" << std::endl;
+}
+

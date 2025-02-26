@@ -1,5 +1,6 @@
-#include <iostream> // TO DO: remove
-#include "smart_pointer_base.hpp"
+#include "control_block.hpp"
+#include "control_block_with_deleter_and_allocator.hpp"
+#include "control_block_make_shared.hpp"
 
 #ifndef SHARED_PTR_H
 #define SHARED_PTR_H
@@ -18,193 +19,136 @@ template <typename T>
 class weak_ptr;
 
 template <typename T>
-class shared_ptr : public SmartPointerBase<T> // TO DO: set private
+class shared_ptr
 {
-public: // TO DO: make protected
-    using SmartPointerBase<T>::pObject;
-    using SmartPointerBase<T>::pCtrlBlock;
-    using BaseControlBlock = SmartPointerBase<T>::BaseControlBlock;
-    using ControlBlockWithObject = SmartPointerBase<T>::
-        ControlBlockWithObject;
-
-    void operatorEqualHelper() noexcept
-    {
-        if (!isNullptr(pObject))
-        {
-            if (isNullptr(pCtrlBlock))
-            {
-                if (SmartPointerBase<T>::getSharedCountNoCtrlBlockNoCheck() == 
-                    1)
-                {
-                    pObject->~T();
-                    if (!SmartPointerBase<T>::getWeakCountNoCtrlBlockNoCheck())
-                    {
-                        operator delete(SmartPointerBase<T>::
-                            getCtrlBlockWithObject(), sizeof(
-                            ControlBlockWithObject));
-                        pObject = nullptr;
-                    } else {
-                        SmartPointerBase<T>::getCtrlBlockWithObject()->
-                            shared_count = 0;
-                    }
-                } else {
-                    --(SmartPointerBase<T>::getCtrlBlockWithObject()->
-                        shared_count);
-                }
-            } else {
-                if (pCtrlBlock->shared_count == 1)
-                {
-                    delete pObject;
-                    pObject = nullptr;
-                    if (!pCtrlBlock->weak_count)
-                    {
-                        delete pCtrlBlock;
-                        pCtrlBlock = nullptr;
-                    } else {
-                        pCtrlBlock->shared_count = 0;
-                    }
-                } else {
-                    --pCtrlBlock->shared_count;
-                }
-            } 
-        }
-    }
-
-    shared_ptr(ControlBlockWithObject* cb)
-            : SmartPointerBase<T>{&cb->value, nullptr}
+private:
+    template <typename U, typename Alloc>
+    shared_ptr(ControlBlockMakeShared<U, Alloc>* pCtrlBlockMakeShared)
+            : pObject(&pCtrlBlockMakeShared->value)
+            , pCtrlBlock(pCtrlBlockMakeShared)
     {}
-
-    shared_ptr(T* pObject, BaseControlBlock* pCtrlBlock)
-            : SmartPointerBase<T>{pObject, pCtrlBlock}
-    {} // for weak_pObject(const shared_ptr&) 
 public:
-    shared_ptr() noexcept
-            : SmartPointerBase<T>{nullptr, nullptr}
-    {}
+    constexpr shared_ptr() noexcept = default;
 
-    shared_ptr(std::nullptr_t) noexcept
+    constexpr shared_ptr(std::nullptr_t) noexcept
             : shared_ptr() 
     {}
 
-    shared_ptr(T* pObject)
-            : SmartPointerBase<T>{pObject, new BaseControlBlock{1, 0}}
+    template <typename Y>
+    explicit shared_ptr(Y* ptr)
+            : pObject(ptr)
+            , pCtrlBlock(new ControlBlock(pObject))
     {}
 
-    shared_ptr(const shared_ptr& other) noexcept
-            : SmartPointerBase<T>{other.pObject, other.pCtrlBlock}
-    {
-        if (!isNullptr(pObject)) SmartPointerBase<T>::incrementSharedCount();
-    }
+    template <typename Y, typename Deleter>
+    shared_ptr(Y* ptr, Deleter deleter)
+            : pObject(ptr)
+            , pCtrlBlock(new ControlBlockWithDeleterAndAllocator(
+                ptr, deleter, std::allocator<Y>()))
+    {}
 
-    explicit shared_ptr(const weak_ptr<T>& other) noexcept
-            : SmartPointerBase<T>{nullptr, nullptr}
-    {
-        if (other.expired()) return;
-        pObject = other.pObject;
-        pCtrlBlock = other.pCtrlBlock;
-        SmartPointerBase<T>::incrementSharedCount();
-    }
+    template <typename Y, typename Deleter, typename Alloc>
+    shared_ptr(Y* ptr, Deleter deleter, Alloc alloc)
+            : pObject(ptr)
+            , pCtrlBlock(new ControlBlockWithDeleterAndAllocator(
+                ptr, deleter, alloc))
+    {} // TO DO: pCtrlBlock must be allocated with custom allocator
 
-    shared_ptr(shared_ptr&& other) noexcept
-            : SmartPointerBase<T>{other.pObject, other.pCtrlBlock}
+    template <typename U>
+    shared_ptr(const shared_ptr<U>& other) noexcept
+            : pObject(other.pObject)
+            , pCtrlBlock(other.pCtrlBlock)
+    {
+        if (!isNullptr(pCtrlBlock)) ++pCtrlBlock->sharedCount;
+    }
+   
+    template <typename U>
+    shared_ptr(shared_ptr<U>&& other) noexcept
+            : pObject(other.pObject)
+            , pCtrlBlock(other.pCtrlBlock)
     {
         other.pObject = nullptr;
         other.pCtrlBlock = nullptr;
     }
 
-    // unlike in unique_pObject, in shared_ptr deleter is called even if 
-    // pObject is nullptr
-    ~shared_ptr()
+    shared_ptr(const shared_ptr& other) noexcept
+            : pObject(other.pObject)
+            , pCtrlBlock(other.pCtrlBlock)
     {
-        if (isNullptr(pObject))
-        {
-            delete pObject;
-            return;
-        }
-        if (isNullptr(pCtrlBlock))
-        {
-            if (SmartPointerBase<T>::getSharedCountNoCtrlBlockNoCheck() == 1)
-            {
-                pObject->~T();
-                if (!SmartPointerBase<T>::getWeakCountNoCtrlBlockNoCheck())
-                {
-                    operator delete(SmartPointerBase<T>::
-                        getCtrlBlockWithObject(), sizeof(
-                        ControlBlockWithObject));
-                } else {
-                    SmartPointerBase<T>::getCtrlBlockWithObject()->shared_count
-                        = 0;
-                }
-            } else {
-                --(SmartPointerBase<T>::getCtrlBlockWithObject()->
-                    shared_count);
-            }
-        } else {
-            if (pCtrlBlock->shared_count == 1)
-            {
-                delete pObject;
-                if (!pCtrlBlock->weak_count)
-                {
-                    delete pCtrlBlock;
-                } else {
-                    pCtrlBlock->shared_count = 0;
-                }
-            } else {
-                --pCtrlBlock->shared_count;
-            }
-        }
+        if (!isNullptr(pCtrlBlock)) ++ pCtrlBlock->sharedCount;
     }
-    // TO DO: check other ctors
 
-    shared_ptr& operator=(const shared_ptr& other) noexcept
+    shared_ptr(shared_ptr&& other) noexcept
+            : pObject(other.pObject)
+            , pCtrlBlock(other.pCtrlBlock)
+    {
+        other.pObject = nullptr;
+        other.pCtrlBlock = nullptr;
+    }
+
+    template <typename Y>
+    explicit shared_ptr(const weak_ptr<Y>& other)
+            : pObject(other.pObject)
+            , pCtrlBlock(other.pCtrlBlock)
+    {
+        if (other.expired()) throw std::bad_weak_ptr();
+        ++pCtrlBlock->sharedCount;
+    }
+
+    // unlike in unique_ptr, in shared_ptr deleter is called even if 
+    // pObject is nullptr
+    ~shared_ptr() { decrementSharedCount(); }
+   
+    template <typename U>
+    shared_ptr& operator=(const shared_ptr<U>& other) noexcept
     {
         if (this != &other && pObject != other.pObject)
         {
-            // 1. --shared_count current control block and delete pObject, if 
-            // shared_count == 0
-            operatorEqualHelper();
-            // 2. copying other's fields
+            decrementSharedCount();
             pObject = other.pObject;
-            pCtrlBlock = other.pCBlock;
-            // 3. ++shared_count
-            if (isNullptr(pCtrlBlock))
-            {
-                ++(SmartPointerBase<T>::getCtrlBlockWithObject()->
-                    shared_count);
-            } else {
-                ++pCtrlBlock->shared_count;
-            }
+            pCtrlBlock = other.pCtrlBlock;
+            if (!isNullptr(pCtrlBlock)) ++pCtrlBlock->sharedCount;
         }
         return *this;
     }
 
-    shared_ptr& operator=(shared_ptr&& other) noexcept
+    shared_ptr& operator=(const shared_ptr& other) noexcept
+    {
+        return operator=<T>(other);
+    }
+    
+    template <typename U>
+    shared_ptr& operator=(shared_ptr<U>&& other) noexcept
     {
         if (this != &other && pObject != other.pObject)
         {
-            // 1. the same as in copying op=
-            operatorEqualHelper();
-            // 2. moving fields
+            decrementSharedCount();
             pObject = other.pObject;
-            pCtrlBlock = other.pCBlock;
+            pCtrlBlock = other.pCtrlBlock;
             other.pObject = nullptr;
             other.pCtrlBlock = nullptr;
         }
         return *this;
     }
 
+    shared_ptr& operator=(shared_ptr&& other) noexcept
+    {
+        return operator=<T>(std::move(other));
+    }
+
     void reset() noexcept
     {
-        operatorEqualHelper();
+        decrementSharedCount();
         pObject = nullptr;
         pCtrlBlock = nullptr;
     }
 
-    void reset(T* newPtr) // TO DO: add deleter and allocator
+    template <typename U>
+    void reset(U* newPtr)
     {
-        operatorEqualHelper();
+        decrementSharedCount();
         pObject = newPtr;
-        pCtrlBlock = new BaseControlBlock{1, 0};
+        pCtrlBlock = new ControlBlock(newPtr);
     }
 
     void swap(shared_ptr& other) noexcept
@@ -220,12 +164,12 @@ public:
 
     size_t use_count() const noexcept 
     { 
-        return SmartPointerBase<T>::getSharedCount(); 
+        return isNullptr(pCtrlBlock) ? 0 : pCtrlBlock->sharedCount;
     }
 
     explicit operator bool() const noexcept 
     { 
-        return SmartPointerBase<T>::getSharedCount(); 
+        return !isNullptr(pCtrlBlock);
     }
 
     template <typename U>
@@ -242,20 +186,45 @@ public:
 
     template <typename U, typename... Args>
     friend shared_ptr<U> make_shared(Args&&... args);
+
+    template <typename U>
+    friend class shared_ptr;
+
+    template <typename U>
+    friend class weak_ptr;
+
+    template <typename U>
+    friend std::ostream& operator<<(std::ostream& out, const shared_ptr<U>& 
+        shptr) noexcept;
+private:
+    void decrementSharedCount() noexcept
+    {
+        if (isNullptr(pCtrlBlock)) return;
+        if (pCtrlBlock->sharedCount == 1)
+        {
+            pCtrlBlock->destroyObject();
+            if (!pCtrlBlock->weakCount)
+            {
+                pCtrlBlock->destroyThis();
+            } else {
+                --pCtrlBlock->sharedCount;
+            }
+        } else {
+            --pCtrlBlock->sharedCount;
+        }
+    }
+private:
+    T* pObject = nullptr;
+    BaseControlBlock* pCtrlBlock = nullptr;
 };
 
-template <typename T, typename... Args>
-shared_ptr<T> make_shared(Args&&... args)
+template <typename U, typename... Args>
+shared_ptr<U> make_shared(Args&&... args)
 {
-    auto pCtrlBlock = new shared_ptr<T>::ControlBlockWithObject{1, 0, 
-        std::forward<Args>(args)...};
-    return shared_ptr<T>(pCtrlBlock);
-    // теперь во всех методах надо рассматривать 2 ситуации:
-    // 1. count nullptr, значит, shared_ptr создан через make_shared и к
-    // счетчикам надо обращаться как к reinterpret_cast<size_t*>(pObject + 1) -
-    // shared_count и reinterpret_cast<size_t*>(pObject + 1) + 1 - weak_count
-    // 2. count не nullptr, значит, shared_ptr создан ручным вызовом new в кре,
-    // тогда к счетчику нужно обращаться через *count
+    using CtrlBlock = ControlBlockMakeShared<U, std::allocator<U>>;
+    CtrlBlock* pCtrlBlockMakeShared = new CtrlBlock(std::allocator<U>(), 
+        std::forward<Args>(args)...);
+    return shared_ptr<U>(pCtrlBlockMakeShared);
 }
 
 template <typename T>
@@ -267,23 +236,4 @@ std::ostream& operator<<(std::ostream& out, const shared_ptr<T>& shptr)
 }
 
 #endif // SHARED_PTR_H
-
-void* operator new(size_t n)
-{ 
-    void* ret = malloc(n);
-    std::cout << n << " bytes allocated at " << ret << std::endl;
-    return ret;
-}
-
-void operator delete(void* pObject)
-{
-    std::cout << "delete at " << pObject << std::endl;
-    free(pObject);
-}
-
-void operator delete(void* pObject, size_t n) 
-{ 
-    std::cout << "delete " << n << " bytes at " << pObject << std::endl;
-    free(pObject); 
-}
 
