@@ -15,5 +15,6 @@ add_executable(shared_ptr
     control_block_make_shared.hpp
     shared_ptr.hpp
     weak_ptr.hpp
+    enable_shared_from_this.hpp
     main.cpp) 
 

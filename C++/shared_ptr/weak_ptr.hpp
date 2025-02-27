@@ -143,6 +143,12 @@ public:
     {
         return pObject == static_cast<T*>(other.pObject);
     }
+   
+    template <typename U>
+    friend class shared_ptr;
+
+    template <typename U>
+    friend class enable_shared_from_this;
 private:
     void decrementWeakCount() noexcept
     {

@@ -49,6 +49,21 @@ struct Son : Mom, Dad
     ~Son() { std::cout << "~Son" << std::endl; }
 };
 
+
+struct S : enable_shared_from_this<S>
+{
+    size_t sz = 0;
+    shared_ptr<S> getSharedPtr() { return shared_from_this(); }
+};
+
+int main()
+{
+    S* pS = new S;
+    shared_ptr<S> shptr(pS);
+    shared_ptr<S> shptr2 = pS->getSharedPtr();
+    std::cout << shptr.use_count() << std::endl;
+}
+
 //int main()
 //{
 //    shared_ptr<Son> shptr = make_shared<Son>(Son{1, 2, 3});
@@ -109,33 +124,33 @@ struct Son : Mom, Dad
 //    std::cout << "Test 4 passed" << std::endl;
 //}
 
-int main()
-{
-    {
-        shared_ptr<std::string> shptr;
-        weak_ptr<std::string> wptr = shptr;
-    }
-    std::cout << "Test 1 passed" << std::endl;
-    {
-        shared_ptr<std::string> shptr(new std::string("abcde"));
-        weak_ptr<std::string> wptr = shptr;
-        shptr.reset();
-    }
-    std::cout << "Test 2 passed" << std::endl;
-    {
-        shared_ptr<std::string> shptr = make_shared<std::string>("abcd");
-        weak_ptr<std::string> wptr1 = shptr;
-        weak_ptr<std::string> wptr2 = shptr;
-        weak_ptr<std::string> wptr3 = wptr1;
-        shptr.reset();
-    }
-    std::cout << "Test 3 passed" << std::endl;
-    {
-        shared_ptr<std::string> shptr1(new std::string("abccd"));
-        shared_ptr<std::string> shptr2 = shptr1;
-        weak_ptr<std::string> wptr1 = shptr1;
-        weak_ptr<std::string> wptr2 = wptr1;
-    }
-    std::cout << "Test 4 passed" << std::endl;
-}
-
+//int main()
+//{
+//    {
+//        shared_ptr<std::string> shptr;
+//        weak_ptr<std::string> wptr = shptr;
+//    }
+//    std::cout << "Test 1 passed" << std::endl;
+//    {
+//        shared_ptr<std::string> shptr(new std::string("abcde"));
+//        weak_ptr<std::string> wptr = shptr;
+//        shptr.reset();
+//    }
+//    std::cout << "Test 2 passed" << std::endl;
+//    {
+//        shared_ptr<std::string> shptr = make_shared<std::string>("abcd");
+//        weak_ptr<std::string> wptr1 = shptr;
+//        weak_ptr<std::string> wptr2 = shptr;
+//        weak_ptr<std::string> wptr3 = wptr1;
+//        shptr.reset();
+//    }
+//    std::cout << "Test 3 passed" << std::endl;
+//    {
+//        shared_ptr<std::string> shptr1(new std::string("abccd"));
+//        shared_ptr<std::string> shptr2 = shptr1;
+//        weak_ptr<std::string> wptr1 = shptr1;
+//        weak_ptr<std::string> wptr2 = wptr1;
+//    }
+//    std::cout << "Test 4 passed" << std::endl;
+//}
+//

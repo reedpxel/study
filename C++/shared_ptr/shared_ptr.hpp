@@ -1,6 +1,7 @@
 #include "control_block.hpp"
 #include "control_block_with_deleter_and_allocator.hpp"
 #include "control_block_make_shared.hpp"
+#include "enable_shared_from_this.hpp"
 
 #ifndef SHARED_PTR_H
 #define SHARED_PTR_H
@@ -19,6 +20,9 @@ template <typename T>
 class weak_ptr;
 
 template <typename T>
+struct enable_shared_from_this;
+
+template <typename T>
 class shared_ptr
 {
 private:
@@ -26,7 +30,12 @@ private:
     shared_ptr(ControlBlockMakeShared<U, Alloc>* pCtrlBlockMakeShared)
             : pObject(&pCtrlBlockMakeShared->value)
             , pCtrlBlock(pCtrlBlockMakeShared)
-    {}
+    {
+        if constexpr (std::is_base_of_v<enable_shared_from_this<T>, U>)
+        {
+            pObject->wptr = *this;
+        }
+    }
 public:
     constexpr shared_ptr() noexcept = default;
 
@@ -38,7 +47,12 @@ public:
     explicit shared_ptr(Y* ptr)
             : pObject(ptr)
             , pCtrlBlock(new ControlBlock(pObject))
-    {}
+    {
+        if constexpr (std::is_base_of_v<enable_shared_from_this<T>, Y>)
+        {
+            pObject->wptr = *this;
+        }
+    }
 
     template <typename Y, typename Deleter>
     shared_ptr(Y* ptr, Deleter deleter)
@@ -52,7 +66,7 @@ public:
             : pObject(ptr)
             , pCtrlBlock(new ControlBlockWithDeleterAndAllocator(
                 ptr, deleter, alloc))
-    {} // TO DO: pCtrlBlock must be allocated with custom allocator
+    {}
 
     template <typename U>
     shared_ptr(const shared_ptr<U>& other) noexcept
@@ -192,6 +206,8 @@ public:
 
     template <typename U>
     friend class weak_ptr;
+
+    friend class enable_shared_from_this<T>;
 
     template <typename U>
     friend std::ostream& operator<<(std::ostream& out, const shared_ptr<U>& 
