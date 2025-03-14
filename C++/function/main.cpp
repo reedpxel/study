@@ -1,5 +1,6 @@
 #include "function.hpp"
 #include <functional>
+#include <cmath>
 
 struct BigObject
 {
@@ -11,7 +12,14 @@ struct BigObject
 
 struct SmallObject
 {
-    void operator()() const { std::cout << 123 << '\n'; }
+    void operator()() const { std::cout << "small" << '\n'; }
+};
+
+struct Object16Bytes
+{
+    size_t x1 = 1;
+    size_t x2 = 2;
+    void operator()() const { std::cout << x1 << x2 << std::endl; }
 };
 
 //void* operator new(size_t n)
@@ -34,67 +42,133 @@ struct SmallObject
 //}
 
 void cStyleFunction() { std::cout << 123 << '\n'; }
+void cStyleFunction2() { std::cout << 456 << '\n'; }
 
 int main()
 {
-    std::function<void()> f1 = [] { std::cout << 123 << '\n'; };
-    std::function<void()> f2 = BigObject();
-    std::function<void()> f3 = SmallObject();
-    std::function<void()> f4 = &cStyleFunction;
-    std::function<void()> f5 = cStyleFunction;
-    std::function<void()> fTest1 = f1;
-    fTest1();
-    std::function<void()> fTest2 = f2;
-    fTest2();
-    std::function<void()> fTest3 = f3;
-    fTest3();
-    std::function<void()> fTest4 = f4;
-    fTest4();
-    std::function<void()> fTest5 = f5;
-    fTest5();
-    std::cout << std::endl;
-    std::function<void()> fTest6 = std::move(f1);
-    fTest6();
-    std::function<void()> fTest7 = std::move(f2);
-    fTest7();
-    std::function<void()> fTest8 = std::move(f3);
-    fTest8();
-    std::function<void()> fTest9 = std::move(f4);
-    fTest9();
-    std::function<void()> fTest10 = std::move(f5);
-    fTest10();
-    std::cout << std::endl;
-    try
+    function<int(void*)> f;
+    std::cout << f.target_type().name() << std::endl;
+    std::cout << f.target<void>() << std::endl;
+    function<int(void*)> f2 = [](void*)
     {
-        f1();
-    } catch (...) {
-        std::cout << "Exception caught\n";
-    }
-    try
-    {
-        f2();
-    } catch (...) {
-        std::cout << "Exception caught\n";
-    }
-    try
-    {
-        f3();
-    } catch (...) {
-        std::cout << "Exception caught\n";
-    }
-    try
-    {
-        f4();
-    } catch (...) {
-        std::cout << "Exception caught\n";
-    }
-    try
-    {
-        f5();
-    } catch (...) {
-        std::cout << "Exception caught\n";
-    }
+        return 0;
+    };
+    std::cout << f2.target_type().name() << std::endl;
+    std::cout << f.target<void>() << std::endl;
 }
+
+//int main()
+//{
+//    function<int(double)> f1 = [](double d) -> int
+//    {
+//        std::cout << "1 " << d << std::endl;
+//        return ceil(sqrt(d));
+//    };
+//    function<int(double)> f2 = [](double d) -> int
+//    {
+//        std::cout << "2 " << d << std::endl;
+//        return floor(d * d);
+//    };
+//    f1.swap(f2);
+//    std::cout << f1(1.1) << '\n' << f2(2.2) << '\n';
+//    // 2 1.1 1 ___ 1 2.2 2
+//    function<void()> f3 = BigObject();
+//    function<void()> f4 = SmallObject();
+//    f3.swap(f4);
+//    f3();
+//    f4();
+//}
+
+//int main()
+//{
+//    function<void()> f = [] { std::cout << "abcd" << std::endl; };
+//    f();
+//    f = BigObject();
+//    f();
+//    f = SmallObject();
+//    f();
+//    f = [] { std::cout << "defg" << std::endl; };
+//    f();
+//    f = cStyleFunction;
+//    f();
+//    f = &cStyleFunction2;
+//    f();
+//    f = nullptr;
+//    try
+//    {
+//        f();
+//    } catch(...) {
+//        std::cout << "caught\n";
+//    }
+//}
+
+//int main()
+//{
+//    function<void()> f = BigObject();
+//    function<void()> f2 = std::move(f);
+//    f2();
+//}
+
+//int main()
+//{
+//    function<void()> f1 = [] { std::cout << 123 << '\n'; };
+//    function<void()> f2 = BigObject();
+//    function<void()> f3 = SmallObject();
+//    function<void()> f4 = &cStyleFunction;
+//    function<void()> f5 = cStyleFunction;
+//    function<void()> fTest1 = f1;
+//    fTest1();
+//    function<void()> fTest2 = f2;
+//    fTest2();
+//    function<void()> fTest3 = f3;
+//    fTest3();
+//    function<void()> fTest4 = f4;
+//    fTest4();
+//    function<void()> fTest5 = f5;
+//    fTest5();
+//    std::cout << std::endl;
+//    function<void()> fTest6 = std::move(f1);
+//    fTest6();
+//    function<void()> fTest7 = std::move(f2);
+//    fTest7();
+//    function<void()> fTest8 = std::move(f3);
+//    fTest8();
+//    function<void()> fTest9 = std::move(f4);
+//    fTest9();
+//    function<void()> fTest10 = std::move(f5);
+//    fTest10();
+//    std::cout << std::endl;
+//    try
+//    {
+//        f1();
+//    } catch (...) {
+//        std::cout << "Exception caught\n";
+//    }
+//    try
+//    {
+//        f2();
+//    } catch (...) {
+//        std::cout << "Exception caught\n";
+//    }
+//    try
+//    {
+//        f3();
+//    } catch (...) {
+//        std::cout << "Exception caught\n";
+//    }
+//    try
+//    {
+//        f4();
+//    } catch (...) {
+//        std::cout << "Exception caught\n";
+//    }
+//    try
+//    {
+//        f5();
+//    } catch (...) {
+//        std::cout << "Exception caught\n";
+//    }
+//}
 
 //int main()
 //{
