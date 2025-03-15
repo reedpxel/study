@@ -1,4 +1,4 @@
-#include <iostream> // TO DO: remove
+#include <functional>
 #include <type_traits>
 #include <cstdint>
 #include <memory>
@@ -27,12 +27,6 @@ bool isNullptr(T* ptr)
 }
 #endif
 
-struct Debug
-{
-    template <typename T>
-    Debug(T) = delete;
-};
-
 struct bad_function_call : std::exception {};
 
 template <typename>
@@ -51,8 +45,6 @@ class function<R(Args...)>
         destroy_ptr_t destroy_ptr;
         copy_ptr_t copy_ptr;
         move_ptr_t move_ptr;
-        size_t x1 = 0;
-        size_t x2 = 0;
     };
 
     friend class ControlBlock;
@@ -166,9 +158,14 @@ public:
     }
 
     template <typename F>
-    function& operator=(std::reference_wrapper<F> f) noexcept; // TO DO:
-                                                               // implement
-    void swap(function& other) // does not work
+    function& operator=(std::reference_wrapper<F> f) noexcept
+    {
+        function<F> func(f);
+        func.swap(*this);
+        return *this;
+    }
+
+    void swap(function& other) 
     {
         std::swap(buffer, other.buffer);
         std::swap(functionObjectPtr, other.functionObjectPtr);
@@ -208,22 +205,6 @@ public:
         return reinterpret_cast<const T*>(functionObjectPtr);
     }
 
-    void print() const noexcept // TO DO: remove
-    {
-        std::cout << "buffer: ptr: " << reinterpret_cast<const void*>(buffer) 
-            << ' ' << " content: ";
-        for (size_t i = 0; i < BUFFER_SIZE; ++i)
-        {
-            std::cout << std::hex << (static_cast<uint16_t>(buffer[i]) & 0xff)
-                << ' ';
-        }
-        std::cout << std::dec << "\nfunctionObjectPtr: " << functionObjectPtr 
-            << '\n';
-        std::cout << "invoke_ptr: " << reinterpret_cast<void*>(invoke_ptr) << 
-            std::endl;
-        std::cout << "ctrlBlockPtr: " << ctrlBlockPtr << std::endl;
-    }
-
 private:
     template <typename F>
     void ctorHelper(F&& f)
@@ -242,8 +223,8 @@ private:
 
     template <typename F>
     static R invokeHelper(F* fPtr, Args... args)
-    { // here must be std::invoke
-        return (*fPtr)(std::forward<Args>(args)...);
+    {
+        return std::invoke(*fPtr, std::forward<Args>(args)...);
     }
 
     template <typename F>
@@ -280,7 +261,7 @@ private:
     }
 
 private:
-    char buffer[BUFFER_SIZE]{}; // is alignas required?
+    char buffer[BUFFER_SIZE]{};
     void* functionObjectPtr = nullptr;
     invoke_ptr_t invoke_ptr;
     std::shared_ptr<ControlBlock> ctrlBlockPtr;

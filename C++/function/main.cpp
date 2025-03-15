@@ -46,16 +46,54 @@ void cStyleFunction2() { std::cout << 456 << '\n'; }
 
 int main()
 {
-    function<int(void*)> f;
-    std::cout << f.target_type().name() << std::endl;
-    std::cout << f.target<void>() << std::endl;
-    function<int(void*)> f2 = [](void*)
-    {
-        return 0;
-    };
-    std::cout << f2.target_type().name() << std::endl;
-    std::cout << f.target<void>() << std::endl;
+    auto f = []() { std::cout << 1; };
+    std::reference_wrapper<decltype(f)> wr(f);
+    function<void()> func = wr;
+    func();
 }
+
+//int main()
+//{
+//    auto l = [](int x)
+//    {
+//        std::cout << x << '\n';
+//        return x * x;
+//    };
+//    function<int()> f = std::bind(l, 100);
+//    std::cout << f() << '\n';
+//}
+
+//struct S
+//{
+//    int field = 9;
+//    int method(double d)
+//    {
+//        std::cout << d << " method\n";
+//        return 1;
+//    }
+//};
+//
+//int main()
+//{
+//    S s;
+//    function<int(S&, double)> fMethod = &S::method;
+//    fMethod(s, 1.1);
+//    function<int(S&)> fField = &S::field;
+//    std::cout << fField(s) << '\n';
+//}
+
+//int main()
+//{
+//    function<int(void*)> f;
+//    std::cout << f.target_type().name() << std::endl;
+//    std::cout << f.target<void>() << std::endl;
+//    function<int(void*)> f2 = [](void*)
+//    {
+//        return 0;
+//    };
+//    std::cout << f2.target_type().name() << std::endl;
+//    std::cout << f.target<void>() << std::endl;
+//}
 
 //int main()
 //{
