@@ -135,9 +135,13 @@ struct CopyMove
 
 int main()
 {
-    deque<CopyMove> deque1;
-    for (int i = 0; i < 5; ++i) deque1.emplace_back();
-    deque1.insert(deque1.begin(), CopyMove());
+    deque<int> d(10, 1);
+    for (auto x : d) std::cout << x << ' ';
+    std::cout << '\n';
+    std::unordered_set<int> s = {1, 2, 3, 4, 5};
+    deque<int> d2(s.begin(), s.end());
+    for (auto x : d2) std::cout << x << ' ';
+    std::cout << '\n';
 }
 
 // shrink_to_fit and resize tests

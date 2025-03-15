@@ -225,9 +225,7 @@ public:
         initializeElements(init);
     }
 
-    // TO DO: deque<int> d(10, 1) is considered to call this ctor, even though
-    // ints are not iterators. How can deque(count, value) be called instead?
-    template <typename InputIt>
+    template <typename InputIt, typename = InputIt::iterator_category>
     deque(InputIt first, InputIt last, const Alloc& alloc = Alloc()) 
             : deque(alloc) // the delegating ctor call ends at this point of 
     // program, that is why a dtor will be called for an object that will throw

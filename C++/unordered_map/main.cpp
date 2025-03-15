@@ -95,26 +95,37 @@ struct Debug
 
 int main()
 {
-    unordered_map<int, std::string> map1;
-    unordered_map<int, std::string> map2(100);
-    std::vector<std::pair<int, std::string>> v = {
-        std::make_pair(1, "one"),
-        std::make_pair(2, "two"),
-        std::make_pair(3, "three"),
-        std::make_pair(4, "four")};
-    unordered_map<int, std::string> map3(v.begin(), v.end());
-    unordered_map<int, std::string> map4 = {
-        std::make_pair(1, "one"),
-        std::make_pair(2, "two"),
-        std::make_pair(3, "three"),
-        std::make_pair(4, "four")};
-    std::cout << "map1:\n";
-    for (auto& [x, y] : map1) std::cout << x << ' ' << y << '\n';  
-    std::cout << "map2:\n";
-    for (auto& [x, y] : map2) std::cout << x << ' ' << y << '\n';
-    std::cout << "map3:\n";
-    for (auto& [x, y] : map3) std::cout << x << ' ' << y << '\n';
-    std::cout << "map4:\n";
-    for (auto& [x, y] : map4) std::cout << x << ' ' << y << '\n';
+    std::vector<std::pair<int, std::string>> v;
+    for (int i = 0; i < 10; ++i) 
+    {
+        v.push_back(std::make_pair(i, std::to_string(i)));
+    }
+    unordered_map<int, std::string> m(v.begin(), v.end());
+    for (auto [x, y] : m) std::cout << x << ' ' << y << '\n';
 }
 
+//int main()
+//{
+//    unordered_map<int, std::string> map1;
+//    unordered_map<int, std::string> map2(100);
+//    std::vector<std::pair<int, std::string>> v = {
+//        std::make_pair(1, "one"),
+//        std::make_pair(2, "two"),
+//        std::make_pair(3, "three"),
+//        std::make_pair(4, "four")};
+//    unordered_map<int, std::string> map3(v.begin(), v.end());
+//    unordered_map<int, std::string> map4 = {
+//        std::make_pair(1, "one"),
+//        std::make_pair(2, "two"),
+//        std::make_pair(3, "three"),
+//        std::make_pair(4, "four")};
+//    std::cout << "map1:\n";
+//    for (auto& [x, y] : map1) std::cout << x << ' ' << y << '\n';  
+//    std::cout << "map2:\n";
+//    for (auto& [x, y] : map2) std::cout << x << ' ' << y << '\n';
+//    std::cout << "map3:\n";
+//    for (auto& [x, y] : map3) std::cout << x << ' ' << y << '\n';
+//    std::cout << "map4:\n";
+//    for (auto& [x, y] : map4) std::cout << x << ' ' << y << '\n';
+//}
+//

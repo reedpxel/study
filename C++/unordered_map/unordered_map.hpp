@@ -173,7 +173,7 @@ public:
         fakeNode.next = &fakeNode;
     }
 
-    template <typename InputIt>
+    template <typename InputIt, typename = InputIt::iterator_category>
     unordered_map(InputIt first, InputIt last, 
                   size_t bucket_count = 7, 
                   const Hash& hash_ = Hash(),
