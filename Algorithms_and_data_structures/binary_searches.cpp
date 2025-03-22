@@ -24,22 +24,25 @@ int binary_search(int* arr, int sz, int value)
     return -1;
 }
 
-// Returns an index to the leftmost element equal to value. If there are no
-// equal elements, returns index to the biggest element less than value
+// Returns an index to the rightmost element equal to value. If there are no
+// equal elements, returns index to the smallest element bigger than value.
+// Works like std::lower_bound.
 int lower_bound(int* arr, int sz, int value)
 {
-    int left = 0, right = sz - 1;
+    int left = 0, right = sz;
+    int res = sz;
     while (left <= right)
     {
         int middle = left + (right - left) / 2;
-        if (arr[middle] > value)
+        if (arr[middle] < value)
         {
-            right = middle - 1;
-        } else {
             left = middle + 1;
+        } else {
+            res = middle;
+            right = middle - 1;
         }
     }
-    return left - 1;
+    return res;
 }
 
 // Returns index to the first element bigger than value
@@ -50,12 +53,12 @@ int upper_bound(int* arr, int sz, int value)
     while (left <= right)
     {
         int middle = left + (right - left) / 2;
-        if (arr[middle] <= value)
+        if (arr[middle] > value)
         {
-            left = middle + 1;
-        } else {
-            res = std::min(res, middle);
+            res = middle;
             right = middle - 1;
+        } else {
+            left = middle + 1;
         }
     }
     return res;
@@ -74,7 +77,7 @@ int firstOne(int* arr, int sz, int value)
         {
             left = middle + 1;
         } else if (arr[middle] == value) {
-            res = std::min(res, middle);
+            res = middle;
             right = middle - 1;
         } else {
             right = middle - 1;
@@ -96,7 +99,7 @@ int lastOne(int* arr, int sz, int value)
         {
             left = middle + 1;
         } else if (arr[middle] == value) {
-            res = std::max(res, middle);
+            res = middle;
             left = middle + 1;
         } else {
             right = middle - 1;
@@ -108,7 +111,7 @@ int lastOne(int* arr, int sz, int value)
 int main()
 {
     constexpr int array_size = 10;
-    int array[array_size] = {-2, 3, -1, -1, 3, 0, -1, -4, -1, -7}; 
+    int array[array_size] = {-3, 1, 2, 1, 1, 3, -5, 1, -3, -2};
     std::sort(array, array + array_size);
     for (int i = 0; i < array_size; ++i)
     {
