@@ -24,44 +24,40 @@ int binary_search(int* arr, int sz, int value)
     return -1;
 }
 
-// Returns an index to the rightmost element equal to value. If there are no
+// Returns an index to the leftmost element equal to value. If there are no
 // equal elements, returns index to the smallest element bigger than value.
 // Works like std::lower_bound.
 int lower_bound(int* arr, int sz, int value)
 {
     int left = 0, right = sz;
-    int res = sz;
-    while (left <= right)
+    while (left < right)
     {
         int middle = left + (right - left) / 2;
         if (arr[middle] < value)
         {
             left = middle + 1;
         } else {
-            res = middle;
-            right = middle - 1;
+            right = middle;
         }
     }
-    return res;
+    return left;
 }
 
 // Returns index to the first element bigger than value
 int upper_bound(int* arr, int sz, int value)
 {
     int left = 0, right = sz;
-    int res = sz;
-    while (left <= right)
+    while (left < right)
     {
         int middle = left + (right - left) / 2;
         if (arr[middle] > value)
         {
-            res = middle;
-            right = middle - 1;
+            right = middle;
         } else {
-            left = middle + 1;
+            left = middle + 1;;
         }
     }
-    return res;
+    return right;
 }
 
 // Returns the leftmost element equal to value. If no equal elements found,
