@@ -45,14 +45,51 @@ int QuickSelect(int* arr, int k, int begin, int end){
     return QuickSelect(arr, k-pivot+begin-1, pivot+1, end);
 }
 
+int partition(int* arr, int first, int last) // chooses arr[last] as pivot
+{
+    int pivot = arr[last];
+    int startIndex = first;
+    for (int i = first; i < last; ++i)
+    {
+        if (arr[i] < pivot)
+        {
+            std::swap(arr[startIndex], arr[i]);
+            ++startIndex;
+        }
+    }
+    std::swap(arr[startIndex], arr[last]);
+    return startIndex;
+}
+
+int kOrderStatistics(int* arr, int sz, int k)
+{
+    int left = 0, right = sz - 1;
+    while (true)
+    {
+        int middle = partition(arr, left, right);
+        if (middle < k)
+        {
+            left = middle + 1;
+        } else if (middle == k) {
+            return arr[k];
+        } else {
+            right = middle - 1;
+        }
+    }
+    return -1;
+}
+
 int main(){
-    int size = 10;
-    srand(time(NULL));
-    int arr[size] = {6, 3, 8, 6, 2, 1, 5, -10, 3, 2};
-    for (int i=0; i<size; ++i)
+    constexpr int sz = 10;
+    int arr[sz] = {-2, -3, 1, 2, 0, -1, 2, -3, -4, -1};
+    for (int i = 0; i < sz; ++i)
+    {
         std::cout << arr[i] << ' ';
-    std::cout << '\n';
-    for (int i=0; i<10; ++i)
-        std::cout << QuickSelect(arr, i, 0, 9) << ' ';
-    return 0;
+    }
+    std::cout << std::endl;
+    for (int i = 0; i < sz; ++i)
+    {
+        std::cout << kOrderStatistics(arr, sz, i) << ' ';
+    }
+    std::cout << std::endl;
 }
