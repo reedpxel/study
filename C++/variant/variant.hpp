@@ -16,7 +16,14 @@ class variant;
 // TO DO: check that all methods' signatures are the same as in
 // cppreference.com, especially that constexpr is placed everywhere
 
-struct bad_variant_access : std::exception {};
+struct bad_variant_access : std::exception 
+{
+    const char* what() const noexcept override
+    {
+        return "Function \"get\" template parameter and the type currently "
+            "stored by variant are not same.\n";
+    }
+};
 
 template <typename T, typename... Types>
 struct VariantAlternative
@@ -24,8 +31,8 @@ struct VariantAlternative
     static constexpr size_t index = get_index_by_type_v<T, Types...>;
 
     VariantAlternative() = default;
-    VariantAlternative(const T& value) { construct(value); }
-    VariantAlternative(T&& value) { construct(std::move(value)); }
+    explicit VariantAlternative(const T& value) { construct(value); }
+    explicit VariantAlternative(T&& value) { construct(std::move(value)); }
 
     void construct(const T& value)
     {
@@ -39,6 +46,24 @@ struct VariantAlternative
         auto* thisVariant = static_cast<variant<Types...>*>(this);
         new (reinterpret_cast<T*>(thisVariant->buffer)) T(std::move(value));
         thisVariant->activeIndex = get_index_by_type_v<T, Types...>;
+    }
+
+    variant<Types...>& operator=(const T& value) 
+    { 
+        auto* thisVariant = static_cast<variant<Types...>*>(this);
+        thisVariant->callAllVariantAlternativeDestroy();
+        new (reinterpret_cast<T*>(thisVariant->buffer)) T(value);
+        thisVariant->activeIndex = get_index_by_type_v<T, Types...>;
+        return *thisVariant;
+    }
+    
+    variant<Types...>& operator=(T&& value) 
+    { 
+        auto* thisVariant = static_cast<variant<Types...>*>(this);
+        thisVariant->callAllVariantAlternativeDestroy();
+        new (reinterpret_cast<T*>(thisVariant->buffer)) T(std::move(value));
+        thisVariant->activeIndex = get_index_by_type_v<T, Types...>;
+        return *thisVariant;
     }
 
     void destroy()
@@ -82,13 +107,17 @@ public:
     }
 
     using VariantAlternative<Types, Types...>::VariantAlternative...;
-
+    using VariantAlternative<Types, Types...>::operator=...;
     variant() = default;
 
-    ~variant()
+    variant& operator=(const variant&) = delete;
+
+    void callAllVariantAlternativeDestroy()
     {
         (VariantAlternative<Types, Types...>::destroy(), ...);
     }
+
+    ~variant() { callAllVariantAlternativeDestroy(); }
 private:
     alignas(max_alignof_v<Types...>) char buffer[max_sizeof_v<Types...>];
     size_t activeIndex = 0;
