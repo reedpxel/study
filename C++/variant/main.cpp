@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <variant>
+#include <vector>
 
 struct Talkative
 {
@@ -21,18 +22,30 @@ struct Talkative
 
 int main()
 {
-    variant<int, double, std::string, Talkative> var;
-    var = 5;
-    std::cout << get<int>(var) << '\n';
-    var = 1.123;
-    std::cout << get<double>(var) << '\n';
-    var = Talkative(1);
-    var = "abcdaaaaaaaaaaaaaaaa";
-    std::cout << get<std::string>(var) << '\n';
-    try
-    {
-        get<int>(var);
-    } catch (const std::exception& e) {
-        std::cout << e.what();
-    }
+    variant<int, std::string, std::vector<int>, Talkative> var1("abc");
+    variant<int, std::string, std::vector<int>, Talkative> var2 = var1;
+    std::cout << var1.index() << ' ' << var2.index() << std::endl;
+    std::cout << get<std::string>(var1) << ' ' << get<std::string>(var2) << std::endl;
 }
+
+//int main()
+//{
+//    static_assert(
+//        std::is_same_v<int, get_type_by_index_t<0, int, double, char, 
+//            std::string, std::vector<int>>>);
+//    static_assert(   
+//        std::is_same_v<double, get_type_by_index_t<1, int, double, char, 
+//            std::string, std::vector<int>>>);
+//    static_assert(
+//        std::is_same_v<char, get_type_by_index_t<2, int, double, char, 
+//            std::string, std::vector<int>>>);
+//    static_assert(
+//        std::is_same_v<std::string, get_type_by_index_t<3, int, double, char, 
+//            std::string, std::vector<int>>>);
+//    static_assert(
+//        std::is_same_v<std::vector<int>, get_type_by_index_t<4, int, double, 
+//            char, std::string, std::vector<int>>>);
+//    static_assert(
+//        std::is_same_v<void, get_type_by_index_t<100, int, double, char, 
+//            std::string, std::vector<int>>>);
+//}

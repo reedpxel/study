@@ -1,0 +1,1 @@
+/usr/bin/c++ -fsanitize=undefined,address,leak CMakeFiles/variant.dir/main.cpp.o -o variant
