@@ -1,3 +1,0 @@
-/home/nick/Documents/study/C++/variant/build/CMakeFiles/variant.dir
-/home/nick/Documents/study/C++/variant/build/CMakeFiles/edit_cache.dir
-/home/nick/Documents/study/C++/variant/build/CMakeFiles/rebuild_cache.dir
