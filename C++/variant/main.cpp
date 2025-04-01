@@ -25,11 +25,23 @@ struct Talkative
 int main()
 {
     variant<int, std::string, std::vector<int>, Talkative> var1("abc");
-    variant<int, std::string, std::vector<int>, Talkative> var2( 
-        std::move(var1));
-    std::cout << var1.index() << ' ' << var2.index() << std::endl;
-    std::cout << get<std::string>(var1) << ' ' << get<std::string>(var2) << 
-        std::endl;
+    variant<int, std::string, std::vector<int>, Talkative> var2(
+        std::vector<int>(10, 10));
+    std::cout << "var1: " << var1.index() << ' ' << get<std::string>(var1) <<
+        std::endl << "var2: " << var2.index() << ' ';
+    for (auto x : get<std::vector<int>>(var2))
+    {
+        std::cout << x << ' ';
+    }
+    std::cout << std::endl;
+    var1 = std::move(var2);
+    std::cout << "var1: " << var1.index() << ' ';
+    for (int x : get<std::vector<int>>(var1))
+    {
+        std::cout << x << ' ';
+    }
+    std::cout << std::endl;
+    std::cout << "var2: " << var2.index() << std::endl;
 }
 
 //int main()

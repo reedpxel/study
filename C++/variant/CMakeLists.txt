@@ -11,7 +11,6 @@ add_link_options(-fsanitize=undefined,address,leak)
 add_executable(variant
     get_index_by_type.hpp
     get_type_by_index.hpp
-    is_nullptr.hpp
     max_alignof.hpp
     max_sizeof.hpp
     variant.hpp

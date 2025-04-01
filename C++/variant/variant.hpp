@@ -7,8 +7,6 @@
 #include "max_alignof.hpp"
 #include "get_index_by_type.hpp"
 #include "get_type_by_index.hpp"
-#include "is_nullptr.hpp"
-#include <iostream> // TO DO: remove
 
 template <typename... Types>
 class variant;
@@ -22,6 +20,9 @@ struct bad_variant_access : std::exception
     }
 };
 
+// TO DO: add exception handling(make methods constexpr(...))
+// TO DO: implement visit
+
 template <typename T, typename... Types>
 struct VariantAlternative
 {
@@ -32,55 +33,43 @@ struct VariantAlternative
     // TO DO: add copy initialization:
     // std::variant<int, std::string, std::vector<int>> var1 = "abc"; 
     // works, but with this variant only direct initialization is available
-    VariantAlternative(const T& value) 
+    constexpr VariantAlternative(const T& value) 
     { 
-        construct(value); 
-    }
-
-    VariantAlternative(T&& value) 
-    {
-        construct(std::move(value)); 
-    }
-
-    VariantAlternative(const variant<Types...>& other)
-    {
-        auto* thisVariant = static_cast<variant<Types...>*>(this);
-        if (other.activeIndex == index)
-        {
-            std::cout << "copy after if \n";
-            new (thisVariant->buffer) T(*reinterpret_cast<const T*>(
-                other.buffer));
-            thisVariant->activeIndex = other.activeIndex;
-        }
-    }
-
-    VariantAlternative(variant<Types...>&& other)
-    {
-        auto* thisVariant = static_cast<variant<Types...>*>(this);
-        if (other.activeIndex == index)
-        {
-            std::cout << "move after if\n";
-            new (thisVariant->buffer) T(std::move(reinterpret_cast<T&>(
-                other.buffer)));
-            thisVariant->activeIndex = other.activeIndex;
-        }
-    }
-
-    void construct(const T& value)
-    {
         auto* thisVariant = static_cast<variant<Types...>*>(this);
         new (reinterpret_cast<T*>(thisVariant->buffer)) T(value);
         thisVariant->activeIndex = get_index_by_type_v<T, Types...>;
     }
 
-    void construct(T&& value)
+    constexpr VariantAlternative(T&& value) 
     {
         auto* thisVariant = static_cast<variant<Types...>*>(this);
         new (reinterpret_cast<T*>(thisVariant->buffer)) T(std::move(value));
         thisVariant->activeIndex = get_index_by_type_v<T, Types...>;
     }
 
-    variant<Types...>& operator=(const T& value) 
+    constexpr VariantAlternative(const variant<Types...>& other)
+    {
+        auto* thisVariant = static_cast<variant<Types...>*>(this);
+        if (other.activeIndex == index)
+        {
+            new (thisVariant->buffer) T(*reinterpret_cast<const T*>(
+                other.buffer));
+            thisVariant->activeIndex = other.activeIndex;
+        }
+    }
+
+    constexpr VariantAlternative(variant<Types...>&& other)
+    {
+        auto* thisVariant = static_cast<variant<Types...>*>(this);
+        if (other.activeIndex == index)
+        {
+            new (thisVariant->buffer) T(std::move(reinterpret_cast<T&>(
+                other.buffer)));
+            thisVariant->activeIndex = other.activeIndex;
+        }
+    }
+
+    constexpr variant<Types...>& operator=(const T& value) 
     { 
         auto* thisVariant = static_cast<variant<Types...>*>(this);
         thisVariant->callAllVariantAlternativeDestroy();
@@ -89,7 +78,7 @@ struct VariantAlternative
         return *thisVariant;
     }
     
-    variant<Types...>& operator=(T&& value) 
+    constexpr variant<Types...>& operator=(T&& value) 
     { 
         auto* thisVariant = static_cast<variant<Types...>*>(this);
         thisVariant->callAllVariantAlternativeDestroy();
@@ -98,7 +87,39 @@ struct VariantAlternative
         return *thisVariant;
     }
 
-    void destroy()
+    constexpr void operator=(const variant<Types...>& other)
+    {
+        auto* thisVariant = static_cast<variant<Types...>*>(this);
+        if (!index)
+        {
+            thisVariant->callAllVariantAlternativeDestroy();
+        }
+        if (other.activeIndex == index)
+        {
+            new (thisVariant->buffer) T(*reinterpret_cast<const T*>(
+                other.buffer));
+            thisVariant->activeIndex = other.activeIndex;
+        }
+    }
+
+    constexpr void operator=(variant<Types...>&& other)
+    {
+        auto* thisVariant = static_cast<variant<Types...>*>(this);
+        if (!index)
+        {
+            thisVariant->callAllVariantAlternativeDestroy();
+        }
+        if (other.activeIndex == index)
+        {
+            new (thisVariant->buffer) T(std::move(reinterpret_cast<T&>(
+                other.buffer)));
+            thisVariant->activeIndex = other.activeIndex;
+            other.callAllVariantAlternativeDestroy();
+            other.activeIndex = static_cast<size_t>(-1);
+        }
+    }
+
+    constexpr void destroy()
     {
         auto* thisVariant = static_cast<variant<Types...>*>(this);
         if (thisVariant->activeIndex == index)
@@ -141,17 +162,32 @@ public:
     using VariantAlternative<Types, Types...>::VariantAlternative...;
     using VariantAlternative<Types, Types...>::operator=...;
 
-    variant() { activeIndex = static_cast<size_t>(-1); }
+    constexpr variant() { activeIndex = static_cast<size_t>(-1); }
 
-    variant(const variant& other) 
+    constexpr variant(const variant& other) 
             : VariantAlternative<Types, Types...>{other}...
     {}
 
-    variant(variant&& other)
+    constexpr variant(variant&& other)
             : VariantAlternative<Types, Types...>{std::move(other)}...
     {}
 
-    void callAllVariantAlternativeDestroy()
+    constexpr variant& operator=(const variant& other)
+    {
+        if (this == &other) return *this;
+        (VariantAlternative<Types, Types...>::operator=(other), ...);
+        return *this;
+    }
+
+    constexpr variant& operator=(variant&& other)
+    {
+        if (this == &other) return *this;
+        (VariantAlternative<Types, Types...>::operator=(std::move(other)), 
+            ...);
+        return *this;
+    }
+
+    constexpr void callAllVariantAlternativeDestroy()
     {
         (VariantAlternative<Types, Types...>::destroy(), ...);
     }
@@ -163,7 +199,7 @@ public:
         return activeIndex == static_cast<size_t>(-1);
     }
     
-    ~variant() { callAllVariantAlternativeDestroy(); }
+    constexpr ~variant() { callAllVariantAlternativeDestroy(); }
 private:
     // fields are not initialized, because they are initialized in
     // VariantAlternative ctors, otherwise initialization of the fields would
