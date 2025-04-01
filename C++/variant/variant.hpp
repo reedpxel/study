@@ -8,6 +8,7 @@
 #include "get_index_by_type.hpp"
 #include "get_type_by_index.hpp"
 #include "is_nullptr.hpp"
+#include <iostream> // TO DO: remove
 
 template <typename... Types>
 class variant;
@@ -44,8 +45,9 @@ struct VariantAlternative
     VariantAlternative(const variant<Types...>& other)
     {
         auto* thisVariant = static_cast<variant<Types...>*>(this);
-        if (thisVariant->activeIndex == index)
+        if (other.activeIndex == index)
         {
+            std::cout << "copy after if \n";
             new (thisVariant->buffer) T(*reinterpret_cast<const T*>(
                 other.buffer));
             thisVariant->activeIndex = other.activeIndex;
@@ -55,9 +57,10 @@ struct VariantAlternative
     VariantAlternative(variant<Types...>&& other)
     {
         auto* thisVariant = static_cast<variant<Types...>*>(this);
-        if (thisVariant->activeIndex == index)
+        if (other.activeIndex == index)
         {
-            new (thisVariant->buffer) T(std::move(*reinterpret_cast<const T*>(
+            std::cout << "move after if\n";
+            new (thisVariant->buffer) T(std::move(reinterpret_cast<T&>(
                 other.buffer)));
             thisVariant->activeIndex = other.activeIndex;
         }
@@ -124,7 +127,7 @@ public:
     friend struct VariantAlternative;
 
     template <typename T>
-    friend constexpr T get(variant& var)
+    friend constexpr T& get(variant& var)
     {
         static_assert(
             get_index_by_type_v<T, Types...> != sizeof...(Types));

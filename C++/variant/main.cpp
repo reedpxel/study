@@ -13,9 +13,11 @@ struct Talkative
     { 
         std::cout << "Talkative(const Talkative&)\n"; 
     }
-    Talkative(Talkative&&)
+    Talkative(Talkative&& other)
     {
         std::cout << "Talkative(Talkative&&)\n";
+        x = other.x;
+        other.x = 0;
     }
     ~Talkative() { std::cout << "~Talkative()\n"; }
 };
@@ -23,9 +25,11 @@ struct Talkative
 int main()
 {
     variant<int, std::string, std::vector<int>, Talkative> var1("abc");
-    variant<int, std::string, std::vector<int>, Talkative> var2 = var1;
+    variant<int, std::string, std::vector<int>, Talkative> var2( 
+        std::move(var1));
     std::cout << var1.index() << ' ' << var2.index() << std::endl;
-    std::cout << get<std::string>(var1) << ' ' << get<std::string>(var2) << std::endl;
+    std::cout << get<std::string>(var1) << ' ' << get<std::string>(var2) << 
+        std::endl;
 }
 
 //int main()
