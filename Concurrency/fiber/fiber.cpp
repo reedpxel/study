@@ -1,48 +1,53 @@
 #include "fiber.hpp"
 
-Fiber::Fiber() noexcept // если файбер без вызываемого объекта, должен ли он
-                        // класться в очередь планировщика?
+Fiber::Fiber() noexcept 
+// У пустого файбера:
+// - нет номера
+// - нельзя вызвать join и detach
+// - его нет в очереди планировщика
         : routine(nullptr)
         , state(Fiber::State::NotLaunched)
-        , id(getNextFiberId())
-        // stack grows in direction of address decrease
-        , stackPtr(new char[STACK_SIZE])
-        , stackTopPtr(stackPtr + STACK_SIZE - 7 * 8) // TODO: write normally
-        , context(stackTopPtr)
+        , id(0)
+        , stackPtr(nullptr)
+        , context()
         , detachCalled(false)
+        , routineCompleted(false)
 {
     setupTrampoline();
     scheduler.pushFiber(this);
-//    void* stackTop = setupTrampoline();
-//    context.setStackTop(stackTop);
 }
 
 Fiber::Fiber(void(*f)()) noexcept
         : routine(f)
         , state(Fiber::State::NotLaunched)
         , id(getNextFiberId())
+        // stack grows in direction of address decrease
         , stackPtr(new char[STACK_SIZE])
-        , stackTopPtr(stackPtr + STACK_SIZE - 7 * 8) // TODO: write normally
-        , context(stackTopPtr)
+        , context(stackPtr + STACK_SIZE - 
+            (ExecutionContext::CALLEE_SAVED_REGISTERS_STACK + 1) * 8)
         , detachCalled(false)
+        , routineCompleted(false)
 {
     std::cout << "Fiber()" << std::endl;
     setupTrampoline();
     scheduler.pushFiber(this);
     std::cout << "Fiber " << id << " stack starts at " << stackPtr << ", ends at " <<
         static_cast<void*>(static_cast<char*>(stackPtr) - STACK_SIZE) << std::endl;
-//    void* stackTop = setupTrampoline();
-//    context.setStackTop(stackTop);
 }
 
 Fiber::~Fiber()
 {
     std::cout << "Fiber " << id << " dtor call" << std::endl;
+    while (!routineCompleted)
+    {
+        ThisFiber::yield();
+    }
     if (joinable())
     {
         std::terminate();
     }
     delete[] stackPtr;
+    std::cout << "Fiber " << id << " dtor call ended" << std::endl;
 }
 
 Fiber::Fiber(Fiber&& other)
@@ -79,27 +84,6 @@ void Fiber::setupTrampoline() noexcept
         STACK_SIZE - 8);
     *returnAddressPtr = trampoline;
 }
-
-//void Fiber::trampoline(ExecutionContext current, ExecutionContext next) 
-//    noexcept
-//{
-//    state = State::Running;
-//    setupTrampoline();
-//    switchStackAsm(&current, &next);
-////    switchContextAsm(&current, &next);
-////    switchContextAsm(current.getStackTop(), next.getStackTop());
-//    try
-//    {
-//        routine();
-//    }
-//    catch (...)
-//    {
-//        std::cout << "Terminate" << std::endl; // TODO: write sth cleverer
-//        std::terminate();
-//    }
-//    scheduler.terminateCurrentFiber();
-//    assert(false);
-//}
 
 void Fiber::switchToScheduler() noexcept
 {
@@ -151,6 +135,7 @@ std::strong_ordering Fiber::operator<=>(const Fiber& other) const noexcept
         std::cout << "Terminate" << std::endl; // TODO: write sth cleverer
         std::terminate();
     }
+    scheduler.current->routineCompleted = true;
     scheduler.terminateCurrentFiber();
     assert(false);
 }

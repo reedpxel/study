@@ -10,9 +10,6 @@ Scheduler::Scheduler()
 {
     void(**trampolinePtr)() = reinterpret_cast<void(**)()>(stackPtr + SCHEDULER_STACK_SIZE - 8);
     *trampolinePtr = schedulerRunLoopTrampoline;
-//    void(**arr)() = reinterpret_cast<void(**)()>(schedulerStack);
-//    arr[ExecutionContext::CALLEE_SAVED_REGISTERS_STACK] = 
-//        schedulerRunLoopTrampoline;
     std::cout << "Scheduler()" << std::endl;
 }
 
@@ -28,8 +25,8 @@ void Scheduler::pushFiber(Fiber* fiber)
     {
         // fiber is main() fiber
         current = fiber;
-        fiber->state = Fiber::State::Yielded;
         fiber->detachCalled = true;
+        fiber->routineCompleted = true;
     }
     runQueue.push_back(fiber);
 }
@@ -74,32 +71,37 @@ void Scheduler::runLoop() noexcept
     while (!runQueue.empty())
     {
         Fiber* front_ = runQueue.front();
-        switch (front_->state)
-        {
-            case Fiber::State::NotLaunched:
-                current = front_;
-                switchToFiber(front_); // calls current->trampoline
-                break;
-            case Fiber::State::Runnable: 
-                // the fiber was launched, called yield, was pushed in the end 
-                // of the run queue and now is in front of the run queue
-                current = front_;
-                switchToFiber(front_);
-                break;
-            case Fiber::State::Yielded:
-                current = nullptr;
-                front_->state = Fiber::State::Runnable;
-                runQueue.pop_front();
-                runQueue.push_back(front_);
-                break;
-            case Fiber::State::Terminated:
-                current = nullptr;
-                runQueue.pop_front();
-                break;
-            default:
-                std::cout << "Erroneous fiber state" << std::endl;
-                std::terminate();
-        }
+        dispatch(front_);
+    }
+}
+
+void Scheduler::dispatch(Fiber* front_) noexcept
+{
+    switch (front_->state)
+    {
+        case Fiber::State::NotLaunched:
+            current = front_;
+            switchToFiber(front_); // calls current->trampoline
+            break;
+        case Fiber::State::Runnable: 
+            // the fiber was launched, called yield, was pushed in the end 
+            // of the run queue and now is in front of the run queue
+            current = front_;
+            switchToFiber(front_);
+            break;
+        case Fiber::State::Yielded:
+            current = nullptr;
+            front_->state = Fiber::State::Runnable;
+            runQueue.pop_front();
+            runQueue.push_back(front_);
+            break;
+        case Fiber::State::Terminated:
+            current = nullptr;
+            runQueue.pop_front();
+            break;
+        default:
+            std::cout << "Erroneous fiber state" << std::endl;
+            std::terminate();
     }
 }
 

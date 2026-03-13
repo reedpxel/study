@@ -3,6 +3,15 @@
 // TODO: move all methods' definitions out of the class
 // TODO: launch parameter
 // TODO: make getter and setter for fiber state
+// TODO: do not allocate stack if fiber is main() fiber
+// TODO: be able to pass std::function in fiber ctor
+// TODO: if fiber object is anonymous, fiber behaviour is different
+// Потому что detach не работает, т.к. объект файбера должен существовать, пока
+// лямбда не выполнится. Для этого нужно хранить в очереди планировщика не
+// указатели, а сами объекты. detach и join должны мувать объекты файбера в
+// очередь планировщика, а от пустых объектов (от которых вызвали detach или
+// join) можно вызывать деструктор, их лямбды мувнули в runQueue.
+// TODO: warning when building
 #ifndef FIBER_H
 #define FIBER_H
 #pragma once
@@ -50,8 +59,6 @@ public:
 public: // TODO: make private
     size_t getNextFiberId() const noexcept;
     void setupTrampoline() noexcept;
-//    /*[[noreturn]]*/ void trampoline(ExecutionContext current, 
-//        ExecutionContext next) noexcept;
     void switchToScheduler() noexcept;
 
 public: // TODO: make private
@@ -59,9 +66,9 @@ public: // TODO: make private
     State state;
     size_t id;
     char* stackPtr;
-    char* stackTopPtr;
     ExecutionContext context;
     bool detachCalled; // мб превратится в enum FiberState
+    bool routineCompleted;
 
 //    static std::deque<size_t> schedulerQueue;
     static size_t maxFiberId;
