@@ -1,17 +1,4 @@
-// TODO: pass arguments to callable object
-// TODO: allocate fiber stack with allocator (template parameter of ctor)
-// TODO: move all methods' definitions out of the class
-// TODO: launch parameter
-// TODO: make getter and setter for fiber state
-// TODO: do not allocate stack if fiber is main() fiber
 // TODO: be able to pass std::function in fiber ctor
-// TODO: if fiber object is anonymous, fiber behaviour is different
-// Потому что detach не работает, т.к. объект файбера должен существовать, пока
-// лямбда не выполнится. Для этого нужно хранить в очереди планировщика не
-// указатели, а сами объекты. detach и join должны мувать объекты файбера в
-// очередь планировщика, а от пустых объектов (от которых вызвали detach или
-// join) можно вызывать деструктор, их лямбды мувнули в runQueue.
-// TODO: warning when building
 #ifndef FIBER_H
 #define FIBER_H
 #pragma once
@@ -23,11 +10,14 @@
 #include <deque>
 #include <cassert>
 #include <cstring>
+#include <memory>
 
 class Scheduler;
 
-class Fiber
+class FiberObject
 {
+    friend class Scheduler;
+    friend class Fiber;
 public:
     enum State
     {
@@ -37,25 +27,15 @@ public:
         Terminated
     };
 
-    /*TODO: add constexpr */Fiber() noexcept;
-    Fiber(void(*f)()) noexcept;
-    Fiber(const Fiber&) = delete;
-    Fiber& operator=(const Fiber&) = delete;
-    Fiber(Fiber&& other);
-    Fiber& operator=(Fiber&& other); // noexcept?
-    ~Fiber();
-    void swap(Fiber& other) noexcept;
-    bool joinable() const noexcept;
-    size_t getId() const noexcept;
-    void detach(); // const? noexcept?
-    void join(); // const? noexcept?
-    std::strong_ordering operator<=>(const Fiber& other) const noexcept;
+    FiberObject(void(*f)()) noexcept;
+    FiberObject(FiberObject&& other);
+    FiberObject& operator=(FiberObject&& other) noexcept;
+    ~FiberObject();
 
-    struct FiberError : public std::exception
-    {
-        ~FiberError() override;
-        const char* what() const noexcept override;
-    };
+    size_t getId() const noexcept;
+    State getState() const noexcept;
+    void setState(State state_) noexcept;
+
 public: // TODO: make private
     size_t getNextFiberId() const noexcept;
     void setupTrampoline() noexcept;
@@ -63,16 +43,15 @@ public: // TODO: make private
 
 public: // TODO: make private
     void(*routine)();
-    State state;
     size_t id;
     char* stackPtr;
     ExecutionContext context;
-    bool detachCalled; // мб превратится в enum FiberState
+    State state;
+    bool detachCalled;
     bool routineCompleted;
 
-//    static std::deque<size_t> schedulerQueue;
-    static size_t maxFiberId;
 public: // TODO: make private
+    static size_t maxFiberId;
     static const size_t STACK_SIZE = 1024 * 1024;
 };
 
@@ -82,8 +61,33 @@ namespace ThisFiber
 {
 size_t getId() noexcept;
 void yield() noexcept;
-//void sleepUntil(...);
-//void sleepFor(...);
+};
+
+struct Fiber
+{
+    constexpr Fiber() noexcept = default;
+    Fiber(void(*routine)());
+    Fiber(const Fiber&) = delete;
+    Fiber& operator=(const Fiber&) = delete;
+    Fiber(Fiber&& other) noexcept;
+    Fiber& operator=(Fiber&& other) noexcept;
+    ~Fiber();
+
+    void swap(Fiber& other) noexcept;
+    bool joinable() const noexcept;
+    size_t getId() const noexcept;
+    void detach();
+    void join();
+    std::strong_ordering operator<=>(const Fiber& other) const noexcept;
+
+    struct FiberError : public std::exception
+    {
+        ~FiberError() override;
+        const char* what() const noexcept override;
+    };
+
+private:
+    FiberObject* fiber = nullptr;
 };
 
 void swap(Fiber& l, Fiber& r) noexcept;

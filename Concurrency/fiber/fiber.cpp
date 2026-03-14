@@ -1,56 +1,21 @@
 #include "fiber.hpp"
 
-Fiber::Fiber() noexcept 
-// У пустого файбера:
-// - нет номера
-// - нельзя вызвать join и detach
-// - его нет в очереди планировщика
-        : routine(nullptr)
-        , state(Fiber::State::NotLaunched)
-        , id(0)
-        , stackPtr(nullptr)
-        , context()
-        , detachCalled(false)
-        , routineCompleted(false)
-{
-    setupTrampoline();
-    scheduler.pushFiber(this);
-}
-
-Fiber::Fiber(void(*f)()) noexcept
+FiberObject::FiberObject(void(*f)()) noexcept
         : routine(f)
-        , state(Fiber::State::NotLaunched)
         , id(getNextFiberId())
         // stack grows in direction of address decrease
-        , stackPtr(new char[STACK_SIZE])
-        , context(stackPtr + STACK_SIZE - 
+        , stackPtr(id == 1 ? nullptr : new char[STACK_SIZE])
+        , context(id == 1 ? nullptr : stackPtr + STACK_SIZE - 
             (ExecutionContext::CALLEE_SAVED_REGISTERS_STACK + 1) * 8)
+        , state(FiberObject::State::NotLaunched)
         , detachCalled(false)
         , routineCompleted(false)
 {
-    std::cout << "Fiber()" << std::endl;
     setupTrampoline();
     scheduler.pushFiber(this);
-    std::cout << "Fiber " << id << " stack starts at " << stackPtr << ", ends at " <<
-        static_cast<void*>(static_cast<char*>(stackPtr) - STACK_SIZE) << std::endl;
 }
 
-Fiber::~Fiber()
-{
-    std::cout << "Fiber " << id << " dtor call" << std::endl;
-    while (!routineCompleted)
-    {
-        ThisFiber::yield();
-    }
-    if (joinable())
-    {
-        std::terminate();
-    }
-    delete[] stackPtr;
-    std::cout << "Fiber " << id << " dtor call ended" << std::endl;
-}
-
-Fiber::Fiber(Fiber&& other)
+FiberObject::FiberObject(FiberObject&& other)
         : routine(other.routine)
         , id(getNextFiberId())
         , detachCalled(other.detachCalled)
@@ -59,7 +24,7 @@ Fiber::Fiber(Fiber&& other)
     other.detachCalled = false;
 }
 
-Fiber& Fiber::operator=(Fiber&& other) // noexcept?
+FiberObject& FiberObject::operator=(FiberObject&& other) noexcept
 {
     if (this == &other)
     {
@@ -72,83 +37,155 @@ Fiber& Fiber::operator=(Fiber&& other) // noexcept?
     return *this;
 }
 
-size_t Fiber::getNextFiberId() const noexcept
+FiberObject::~FiberObject()
+{
+    delete[] stackPtr;
+}
+
+size_t FiberObject::getId() const noexcept
+{
+    return id;
+}
+
+FiberObject::State FiberObject::getState() const noexcept
+{
+    return state;
+}
+
+void FiberObject::setState(FiberObject::State state_) noexcept
+{
+    state = state_;
+}
+
+size_t FiberObject::getNextFiberId() const noexcept
 {
     ++maxFiberId;
     return maxFiberId;
 }
 
-void Fiber::setupTrampoline() noexcept
+void FiberObject::setupTrampoline() noexcept
 {
+    if (id == 1)
+    {
+        return;
+    }
     void(**returnAddressPtr)() = reinterpret_cast<void(**)()>(stackPtr + 
         STACK_SIZE - 8);
     *returnAddressPtr = trampoline;
 }
 
-void Fiber::switchToScheduler() noexcept
+void FiberObject::switchToScheduler() noexcept
 {
     switchContextAsm(&context, &scheduler.context); 
 }
 
-size_t Fiber::maxFiberId = 0;
-
-bool Fiber::joinable() const noexcept
-{
-    return !detachCalled && routine;
-}
-
-size_t Fiber::getId() const noexcept
-{
-    return id;
-}
-
-void Fiber::detach() // const?
-{
-    if (!joinable())
-    {
-        throw FiberError();
-    }
-    detachCalled = true;
-}
-
-void Fiber::join() // const?
-{
-    detach();
-    ThisFiber::yield(); // sure?
-}
-
-std::strong_ordering Fiber::operator<=>(const Fiber& other) const noexcept
-{
-    return id <=> other.id;
-    // А если подумать, тут weak_ordering, потому что равных файберов на самом
-    // деле нет. Или забить?
-}
+size_t FiberObject::maxFiberId = 0;
 
 [[noreturn]] void trampoline() noexcept
 {
+    // TODO: exceptions break a fiber
     try
     {
-        scheduler.current->routine();
+        scheduler.getCurrentFiber()->routine();
     }
     catch (...)
     {
-        std::cout << "Terminate" << std::endl; // TODO: write sth cleverer
+        std::cout << "Uncaught exception went beyond the fiber stack" << 
+            std::endl;
         std::terminate();
     }
-    scheduler.current->routineCompleted = true;
+    scheduler.getCurrentFiber()->routineCompleted = true;
     scheduler.terminateCurrentFiber();
     assert(false);
 }
 
-size_t getId() noexcept
+size_t ThisFiber::getId() noexcept
 {
-    // TODO: implement
-    return 0;
+    return scheduler.getCurrentFiber()->getId();
 }
 
-void yield() noexcept
+void ThisFiber::yield() noexcept
 {
-    // TODO: implement
+    scheduler.getCurrentFiber()->setState(FiberObject::State::Yielded);
+    scheduler.getCurrentFiber()->switchToScheduler();
+}
+
+Fiber::Fiber(void(*routine)())
+        : fiber(new FiberObject(routine))
+{}
+
+Fiber::Fiber(Fiber&& other) noexcept
+        : fiber(other.fiber)
+{
+    other.fiber = nullptr;
+}
+
+Fiber& Fiber::operator=(Fiber&& other) noexcept
+{
+    if (this == &other)
+    {
+        return *this;
+    }
+    fiber = other.fiber;
+    other.fiber = nullptr;
+    return *this;
+}
+
+Fiber::~Fiber()
+{
+    if (fiber && !fiber->detachCalled)
+    {
+        std::terminate();
+    }
+}
+
+void Fiber::swap(Fiber& other) noexcept
+{
+    FiberObject* tmp = fiber;
+    fiber = other.fiber;
+    other.fiber = tmp;
+}
+
+bool Fiber::joinable() const noexcept
+{
+    if (fiber)
+    {
+        return !fiber->detachCalled;
+    }
+    return false;
+}
+
+size_t Fiber::getId() const noexcept
+{
+    if (!fiber)
+    {
+        return 0;
+    }
+    return fiber->getId();
+}
+
+void Fiber::detach()
+{
+    if (!joinable())
+    {
+        throw FiberError{};
+    }
+    fiber->detachCalled = true;
+}
+
+void Fiber::join()
+{
+    detach();
+    ThisFiber::yield();
+}
+
+std::strong_ordering Fiber::operator<=>(const Fiber& other) const noexcept
+{
+    if (!fiber || !other.fiber)
+    {
+        return fiber <=> other.fiber;
+    }
+    return fiber->id <=> other.fiber->id;
 }
 
 Fiber::FiberError::~FiberError() {}
@@ -158,8 +195,13 @@ const char* Fiber::FiberError::what() const noexcept
     return "Fiber is not joinable";
 }
 
-void ThisFiber::yield() noexcept
+void swap(Fiber& l, Fiber& r) noexcept
 {
-    scheduler.current->state = Fiber::State::Yielded;
-    scheduler.current->switchToScheduler();
+    l.swap(r);
 }
+
+bool hasReadyFibers() noexcept
+{
+    return !scheduler.runQueue.empty();
+}
+

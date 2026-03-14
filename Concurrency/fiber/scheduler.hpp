@@ -7,30 +7,28 @@
 
 #include <deque>
 #include <memory>
-#include <unordered_map> // TODO: remove
 
 int main();
-class Fiber;
+class FiberObject;
 
 class Scheduler
 {
 public:
     Scheduler();
     ~Scheduler();
-    void pushFiber(Fiber* fiber);
+    void pushFiber(FiberObject* fiber);
     void terminateCurrentFiber() noexcept;
-    void printSchedulerQueue(); // TODO: remove
+    FiberObject* getCurrentFiber() const noexcept;
 
 public: // TODO: make private
     void runLoop() noexcept;
-    void switchToFiber(Fiber* fiber) noexcept;
-    void dispatch(Fiber* front_) noexcept;
+    void switchToFiber(FiberObject* fiber) noexcept;
+    void dispatch(FiberObject* front_) noexcept;
 public: // TODO: make private
-    static const size_t SCHEDULER_STACK_SIZE = 1024 * 1024;
+    static const size_t SCHEDULER_STACK_SIZE = 512 * 1024;
 public: // TODO: make private
-    std::deque<Fiber*> runQueue; // stores pointers, because fiber objects are
-                                 // created on stacks of other fibers 
-    Fiber* current;
+    std::deque<FiberObject*> runQueue;
+    FiberObject* current;
     // scheduler stack to store callee-saved registers and return address
     char* stackPtr;
     char* stackTop;

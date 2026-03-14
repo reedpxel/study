@@ -8,18 +8,21 @@ Scheduler::Scheduler()
         , context(stackTop - 
             ExecutionContext::CALLEE_SAVED_REGISTERS_STACK * 8)
 {
-    void(**trampolinePtr)() = reinterpret_cast<void(**)()>(stackPtr + SCHEDULER_STACK_SIZE - 8);
+    void(**trampolinePtr)() = reinterpret_cast<void(**)()>(stackPtr + 
+        SCHEDULER_STACK_SIZE - 8);
     *trampolinePtr = schedulerRunLoopTrampoline;
-    std::cout << "Scheduler()" << std::endl;
 }
 
 Scheduler::~Scheduler()
 {
-    std::cout << "~Scheduler()" << std::endl;
+    while (runQueue.size() != 1)
+    {
+        ThisFiber::yield();
+    }
     delete[] stackPtr;
 }
 
-void Scheduler::pushFiber(Fiber* fiber)
+void Scheduler::pushFiber(FiberObject* fiber)
 {
     if (runQueue.empty())
     {
@@ -40,64 +43,48 @@ void Scheduler::terminateCurrentFiber() noexcept
     // Следовательно, не нужно обрабатывать ситуацию, когда очередь
     // планировщика пуста.
     // Если этот метод вызвался, размер очереди минимум 2.
-    scheduler.current->state = Fiber::State::Terminated;
+    scheduler.current->setState(FiberObject::State::Terminated);
     scheduler.current->switchToScheduler();
 }
 
-void Scheduler::printSchedulerQueue()
+FiberObject* Scheduler::getCurrentFiber() const noexcept
 {
-    std::unordered_map<int, std::string> stateStr = 
-    {
-         std::make_pair(0, "NotStarted"),
-         std::make_pair(1, "Running"),
-         std::make_pair(2, "Runnable"),
-         std::make_pair(3, "Terminated"),
-    };
-    std::cout << "Queue size: " << runQueue.size() << " End ||| ";
-    for (auto it = runQueue.end() - 1; ; --it)
-    {
-        std::cout << (*it)->getId() << ' ' << 
-            stateStr[static_cast<int>((*it)->state)] << " | ";
-        if (it == runQueue.begin())
-        {
-            break;
-        }
-    }
-    std::cout << "||| Start" << std::endl;
+    return current;
 }
 
 void Scheduler::runLoop() noexcept
 {
     while (!runQueue.empty())
     {
-        Fiber* front_ = runQueue.front();
+        FiberObject* front_ = runQueue.front();
         dispatch(front_);
     }
 }
 
-void Scheduler::dispatch(Fiber* front_) noexcept
+void Scheduler::dispatch(FiberObject* front_) noexcept
 {
-    switch (front_->state)
+    switch (front_->getState())
     {
-        case Fiber::State::NotLaunched:
+        case FiberObject::State::NotLaunched:
             current = front_;
             switchToFiber(front_); // calls current->trampoline
             break;
-        case Fiber::State::Runnable: 
+        case FiberObject::State::Runnable: 
             // the fiber was launched, called yield, was pushed in the end 
             // of the run queue and now is in front of the run queue
             current = front_;
             switchToFiber(front_);
             break;
-        case Fiber::State::Yielded:
+        case FiberObject::State::Yielded:
             current = nullptr;
-            front_->state = Fiber::State::Runnable;
+            front_->setState(FiberObject::State::Runnable);
             runQueue.pop_front();
             runQueue.push_back(front_);
             break;
-        case Fiber::State::Terminated:
+        case FiberObject::State::Terminated:
             current = nullptr;
             runQueue.pop_front();
+            delete front_;
             break;
         default:
             std::cout << "Erroneous fiber state" << std::endl;
@@ -105,7 +92,7 @@ void Scheduler::dispatch(Fiber* front_) noexcept
     }
 }
 
-void Scheduler::switchToFiber(Fiber* fiber) noexcept
+void Scheduler::switchToFiber(FiberObject* fiber) noexcept
 {
     switchContextAsm(&context, &fiber->context);
 }
@@ -116,5 +103,5 @@ void schedulerRunLoopTrampoline()
 }
 
 Scheduler scheduler;
-Fiber mainFiber(reinterpret_cast<void(*)()>(&main));
+FiberObject mainFiber(reinterpret_cast<void(*)()>(&main));
 
