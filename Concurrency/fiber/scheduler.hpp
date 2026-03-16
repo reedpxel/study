@@ -7,35 +7,42 @@
 
 #include <deque>
 #include <memory>
+#include <iostream>
 
 int main();
 class FiberObject;
 
 class Scheduler
 {
+    friend void schedulerRunLoopTrampoline() noexcept;
+
 public:
     Scheduler();
     ~Scheduler();
     void pushFiber(FiberObject* fiber);
     void terminateCurrentFiber() noexcept;
     FiberObject* getCurrentFiber() const noexcept;
-
-public: // TODO: make private
+    ExecutionContext* getContext() noexcept;
+    bool hasReadyFibers() const noexcept;
+private:
     void runLoop() noexcept;
     void switchToFiber(FiberObject* fiber) noexcept;
     void dispatch(FiberObject* front_) noexcept;
-public: // TODO: make private
+
+private:
     static const size_t SCHEDULER_STACK_SIZE = 512 * 1024;
-public: // TODO: make private
+
+private:
     std::deque<FiberObject*> runQueue;
     FiberObject* current;
-    // scheduler stack to store callee-saved registers and return address
+    FiberObject* mainFiber;
+    // scheduler stack to store callee-saved registers and return addresses
     char* stackPtr;
     char* stackTop;
     ExecutionContext context;
 };
 
-void schedulerRunLoopTrampoline();
+void schedulerRunLoopTrampoline() noexcept;
 
 extern Scheduler scheduler;
 

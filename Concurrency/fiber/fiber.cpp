@@ -15,28 +15,6 @@ FiberObject::FiberObject(void(*f)()) noexcept
     scheduler.pushFiber(this);
 }
 
-FiberObject::FiberObject(FiberObject&& other)
-        : routine(other.routine)
-        , id(getNextFiberId())
-        , detachCalled(other.detachCalled)
-{
-    other.routine = nullptr;
-    other.detachCalled = false;
-}
-
-FiberObject& FiberObject::operator=(FiberObject&& other) noexcept
-{
-    if (this == &other)
-    {
-        return *this;
-    }
-    routine = other.routine;
-    other.routine = nullptr;
-    detachCalled = other.detachCalled;
-    other.detachCalled = false;
-    return *this;
-}
-
 FiberObject::~FiberObject()
 {
     delete[] stackPtr;
@@ -76,14 +54,13 @@ void FiberObject::setupTrampoline() noexcept
 
 void FiberObject::switchToScheduler() noexcept
 {
-    switchContextAsm(&context, &scheduler.context); 
+    switchContextAsm(&context, scheduler.getContext());
 }
 
 size_t FiberObject::maxFiberId = 0;
 
 [[noreturn]] void trampoline() noexcept
 {
-    // TODO: exceptions break a fiber
     try
     {
         scheduler.getCurrentFiber()->routine();
@@ -133,7 +110,8 @@ Fiber& Fiber::operator=(Fiber&& other) noexcept
 
 Fiber::~Fiber()
 {
-    if (fiber && !fiber->detachCalled)
+    if (joinable())
+//    if (fiber && !fiber->detachCalled)
     {
         std::terminate();
     }
@@ -202,6 +180,6 @@ void swap(Fiber& l, Fiber& r) noexcept
 
 bool hasReadyFibers() noexcept
 {
-    return !scheduler.runQueue.empty();
+    return scheduler.hasReadyFibers();
 }
 

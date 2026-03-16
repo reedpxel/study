@@ -1,26 +1,33 @@
 #include <type_traits>
 #include <functional>
+#include <iostream>
 #include "fiber.hpp"
-
-//void* operator new(size_t n)
-//{
-//    std::cout << n << " bytes allocated\n";
-//    return malloc(n);
-//}
-//
-//void operator delete(void* ptr, size_t n) noexcept
-//{
-//    std::cout << n << " bytes deallocated\n";
-//    free(ptr);
-//}
 
 int main()
 {
-    Fiber([] { std::cout << 2 << std::endl; }).detach();
-    std::cout << 1 << std::endl;
+    Fiber([]
+    {
+        std::cout << 2;
+        ThisFiber::yield();
+        std::cout << 4;
+    }).detach();
+    std::cout << 1;
     ThisFiber::yield();
-    std::cout << 3 << std::endl;
+    std::cout << 3;
+    Fiber([] { std::cout << 5; }).detach();
+    ThisFiber::yield();
+    std::cout << 6;
 }
+
+//int main()
+//{
+//    Fiber([] { std::cout << "abcd" << std::endl; }).detach();
+//}
+
+//int main()
+//{
+//    Fiber([] {}).join();
+//}
 
 //int main()
 //{
@@ -29,7 +36,7 @@ int main()
 //        int x = 0;
 //        for (int i = 0; i < 10; ++i)
 //        {
-//            std::cout << x << std::endl;
+//            std::cout << x;
 //            ++x;
 //            ThisFiber::yield();
 //        }
@@ -92,6 +99,21 @@ int main()
 //        f3.detach();
 //    });
 //    f2.detach();
-//    std::cout << "!!!1!!!";
+//    std::cout << "!!!1!!!\n";
+//}
+
+//int main()
+//{
+//    Fiber([] 
+//    {
+//        try
+//        {
+//            throw 1;
+//        }
+//        catch (...)
+//        {
+//            std::cout << "Caught\n";
+//        }
+//    }).detach();
 //}
 

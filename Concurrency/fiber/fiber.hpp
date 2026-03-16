@@ -1,4 +1,5 @@
 // TODO: be able to pass std::function in fiber ctor
+// TODO: add exception handling
 #ifndef FIBER_H
 #define FIBER_H
 #pragma once
@@ -6,18 +7,21 @@
 #include "execution_context.hpp"
 #include "scheduler.hpp"
 
-#include <iostream>
 #include <deque>
 #include <cassert>
 #include <cstring>
 #include <memory>
+#include <cstdio>
 
 class Scheduler;
+[[noreturn]] void trampoline() noexcept;
 
 class FiberObject
 {
     friend class Scheduler;
     friend class Fiber;
+    friend void trampoline() noexcept;
+
 public:
     enum State
     {
@@ -28,20 +32,18 @@ public:
     };
 
     FiberObject(void(*f)()) noexcept;
-    FiberObject(FiberObject&& other);
-    FiberObject& operator=(FiberObject&& other) noexcept;
     ~FiberObject();
 
     size_t getId() const noexcept;
     State getState() const noexcept;
     void setState(State state_) noexcept;
-
-public: // TODO: make private
-    size_t getNextFiberId() const noexcept;
-    void setupTrampoline() noexcept;
     void switchToScheduler() noexcept;
 
-public: // TODO: make private
+private:
+    size_t getNextFiberId() const noexcept;
+    void setupTrampoline() noexcept;
+
+private:
     void(*routine)();
     size_t id;
     char* stackPtr;
@@ -50,7 +52,7 @@ public: // TODO: make private
     bool detachCalled;
     bool routineCompleted;
 
-public: // TODO: make private
+private:
     static size_t maxFiberId;
     static const size_t STACK_SIZE = 1024 * 1024;
 };
