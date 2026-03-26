@@ -103,8 +103,15 @@ private:
 
 int main()
 {
-    io_context io;
-    Server server(io);
-    io.run();
+    try
+    {
+        io_context io;
+        Server server(io);
+        io.run();
+    }
+    catch (const std::exception& exc)
+    {
+        std::cout << "Exception caught: " << exc.what() << std::endl;
+    }
 }
 
