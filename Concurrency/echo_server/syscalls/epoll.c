@@ -9,7 +9,7 @@
 #include <sys/epoll.h>
 #include <fcntl.h>
 
-#define PORT 55556
+#define PORT 55555
 #define MAX_CONNECTION_QUEUE_SIZE 5
 #define BUFFER_SIZE 1024
 #define EPOLL_WAIT_ARRAY_SIZE 10

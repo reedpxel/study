@@ -7,7 +7,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 
-#define PORT 55556
+#define PORT 55555
 #define MAX_CONNECTION_QUEUE_SIZE 5
 #define BUFFER_SIZE 1024
 

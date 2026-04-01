@@ -20,8 +20,7 @@ private:
     std::string remoteHost() try
     {
         ip::tcp::endpoint ep = socket_.remote_endpoint();
-        return ep.address().to_string() + ":" + 
-            std::to_string(ep.port());
+        return ep.address().to_string() + ":" + std::to_string(ep.port());
     }
     catch (...)
     {
