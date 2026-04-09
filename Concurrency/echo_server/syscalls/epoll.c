@@ -51,6 +51,7 @@ void handle_input(int fd)
         perror("write");
         exit(EXIT_FAILURE);
     }
+    close(fd);
 }
 
 int setup_server_socket()
