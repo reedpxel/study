@@ -4,12 +4,10 @@
 #include <vector>
 #include <chrono>
 
-// TODO: memory orders in atomic operations
-
 using namespace std::chrono_literals;
 
 #define THREAD_COUNT 10
-#define CYCLE_COUNT 100
+#define CYCLE_COUNT 10'000
 
 std::atomic<size_t> lockCycleCount = 0;
 
@@ -24,7 +22,9 @@ class BadSpinlock
 public:
     void lock()
     {
-        while (locked.exchange(true))
+        // reading operation - acquire
+        // writing operation - release
+        while (locked.exchange(true, std::memory_order::memory_order_acq_rel))
         {
             pause();
         }
@@ -32,7 +32,7 @@ public:
 
     bool try_lock()
     {
-        if (!locked.exchange(true))
+        if (!locked.exchange(true, std::memory_order::memory_order_acq_rel))
         {
             return true;
         }
@@ -41,7 +41,7 @@ public:
 
     void unlock()
     {
-        locked.store(false);
+        locked.store(false, std::memory_order::memory_order_release);
     }
 private:
     std::atomic<bool> locked = false;
@@ -52,9 +52,9 @@ class ABitBetterSpinlock
 public:
     void lock()
     {
-        while (locked.exchange(true))
+        while (locked.exchange(true, std::memory_order::memory_order_acq_rel))
         {
-            while (locked.load())
+            while (locked.load(std::memory_order_release))
             {
                 pause();
             }
@@ -63,7 +63,7 @@ public:
 
     bool try_lock()
     {
-        if (!locked.exchange(true))
+        if (!locked.exchange(true, std::memory_order::memory_order_acq_rel))
         {
             return true;
         }
@@ -72,7 +72,7 @@ public:
 
     void unlock()
     {
-        locked.store(false);
+        locked.store(false, std::memory_order::memory_order_release);
     }
 private:
     std::atomic<bool> locked = false;
@@ -171,14 +171,17 @@ template <typename SpinlockType>
 void spinlock_test()
 {
     SpinlockType spinlock_;
+    size_t count = 0;
     std::vector<std::thread> threads;
     for (int i = 0; i < THREAD_COUNT; ++i)
     {
-        threads.emplace_back([&spinlock_, i] 
+        threads.emplace_back([&spinlock_, &count, i] 
         {
             for (int j = 0; j < CYCLE_COUNT; ++j)
             {
+//            while (!spinlock_.try_lock());
                 spinlock_.lock();
+                ++count;
                 spinlock_.unlock();
             }
         });
@@ -187,6 +190,7 @@ void spinlock_test()
     {
         th.join();
     }
+    std::cout << count << ' ';
 }
 
 void queueSpinlockTest()
@@ -224,8 +228,7 @@ int main()
     {
         measure_time(spinlock_test<BadSpinlock>);
         measure_time(spinlock_test<ABitBetterSpinlock>);
-        measure_time(queueSpinlockTest);
-        std::cout << std::endl;
+//        measure_time(queueSpinlockTest);
     }
 }
 

@@ -10,7 +10,7 @@ bool Fork::try_lock()
 {
     if (std::mutex::try_lock())
     {
-       owner = std::this_thread::get_id();
+        owner = std::this_thread::get_id();
         return true;
     }
     return false;
