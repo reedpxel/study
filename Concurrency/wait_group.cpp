@@ -5,6 +5,9 @@
 #include <atomic>
 #include <condition_variable>
 
+#define THREAD_COUNT 100
+#define INCREMENT_COUNT 100'000
+
 class WaitGroup
 {
 public:
@@ -20,19 +23,19 @@ public:
         --count;
         if (count == 0)
         {
-            cv.notify_all();
+            countIsZero.notify_all();
         }
     }
 
     void wait()
     {
         std::unique_lock lock_(mutex_);
-        cv.wait(lock_);
+        countIsZero.wait(lock_, [this]() -> bool { return count == 0; });
     }
 
 private:
     size_t count = 0;
-    std::condition_variable cv;
+    std::condition_variable countIsZero;
     std::mutex mutex_;
 };
 
@@ -40,13 +43,13 @@ int main()
 {
     std::vector<std::thread> threads;
     WaitGroup wg;
+    wg.add(THREAD_COUNT);
     std::atomic<size_t> uselessCount = 0;
-    for (int i = 0; i < 100; ++i)
+    for (int i = 0; i < THREAD_COUNT; ++i)
     {
         threads.emplace_back([&wg, &uselessCount]
         {
-            wg.add();
-            for (int i = 0; i < 100'000; ++i)
+            for (int i = 0; i < INCREMENT_COUNT; ++i)
             {
                 ++uselessCount;
             }
