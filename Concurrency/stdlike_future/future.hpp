@@ -1,29 +1,30 @@
-// TODO: добавить namespace stdlike
-// TODO: потестить move-only, copy-only объекты
-//
 #ifndef FUTURE_H
 #define FUTURE_H
 
 #include "promise.hpp"
 #include "shared_state.hpp"
 
+// std::future may be created from:
+// 1. std::promise::get_future()
+// 2. std::async
+// 3. std::packaged_task
+// This future only supports creation from promises
+
 template <typename T>
 class Future
 {
     friend class Promise<T>;
 
-    Future(Promise<T>& promise_) // TODO: mb const Promise& ?
+    Future(const Promise<T>& promise_)
             : sharedStatePtr(promise_.sharedStatePtr)
     {}
+
 public:
     T get()
     {
-//        std::this_thread::sleep_for(10s); // TODO: remove
-       // 0. залочить мьютекс
+        // 0. lock mutex
         std::unique_lock lock_(sharedStatePtr->mutex_);
-       // 1. проверить, есть ли значение
-       //   Если нет, заблокироваться на cvResultReady.wait([] resultReady =
-       //   true; );
+        // 1. check if result is ready, block if it's not
         if (!sharedStatePtr->resultReady)
         {
             sharedStatePtr->cvResultReady.wait(lock_, [this] 
@@ -31,18 +32,31 @@ public:
                     return sharedStatePtr->resultReady; 
                 });
         }
-       // 2. Если в expected лежит значение, вернуть его. Если лежит
-       // std::exception_ptr, кинуть исключение из него
+        // 2. If expected contents a value, return it. If it contents an
+        // std::exception_ptr, throw exception that it stores
         if (!sharedStatePtr->getResult()->has_value())
         {
             std::rethrow_exception(sharedStatePtr->getResult()->error());
         }
-        return T{std::move(sharedStatePtr->getResult()->value())};
+        if constexpr (std::is_move_constructible_v<T>)
+        {
+            return T{std::move(sharedStatePtr->getResult()->value())};
+        }
+        else
+        {
+            return T{sharedStatePtr->getResult()->value()};
+        }
     }
+
+    Future(const Future&) = delete;
+    Future& operator=(const Future&) = delete;
+
+    Future(Future&&) = default;
+    Future& operator=(Future&&) = default;
 
     ~Future() = default;
 
-public: // TODO: make private
+private:
     std::shared_ptr<SharedState<T>> sharedStatePtr;
 };
 

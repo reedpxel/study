@@ -17,11 +17,15 @@ public:
             : sharedStatePtr(std::make_shared<SharedState<T>>())
     {}
 
+    Promise(const Promise&) = delete;
+    Promise& operator=(const Promise&) = delete;
+    
+    Promise(Promise&&) = default;
+    Promise& operator=(Promise&&) = default;
+
     ~Promise() = default;
-
-    // TODO: copy and move ctors and operator=
-
-    void setValue(const T& value) // TODO: needed T&& ? yes, needed, implement
+    
+    void setValue(const T& value)
     {
         // 0. lock mutex
         std::lock_guard guard_(sharedStatePtr->mutex_);
@@ -29,16 +33,26 @@ public:
         new (sharedStatePtr.get()) std::expected<T, std::exception_ptr>(value);
         // 2. set resultReady to true
         sharedStatePtr->resultReady = true;
-        // Один поток может делать запись в resultReady в этом методе, другой 
-        // может читать его в future.get(). Тут нужен мьютекс. Не атомик, потому
-        // что весь метод целиком должен быть атомарным. 
+        // One thread may write in resultReady in this method, another may read
+        // from resultReady in future.get(), a mutex required
         // 3. notify one
         sharedStatePtr->cvResultReady.notify_one();
     }
+
+    void setValue(T&& value)
+    {
+        std::lock_guard guard_(sharedStatePtr->mutex_);
+        new (sharedStatePtr.get()) std::expected<T, std::exception_ptr>(
+            std::move(value));
+        sharedStatePtr->resultReady = true;
+        sharedStatePtr->cvResultReady.notify_one();
+    }
+
     void setException(std::exception_ptr eptr)
     {
         std::lock_guard guard_(sharedStatePtr->mutex_);
-        new (sharedStatePtr.get()) std::expected<T, std::exception_ptr>(std::unexpect, eptr);
+        new (sharedStatePtr.get()) std::expected<T, std::exception_ptr>(
+            std::unexpect, eptr);
         sharedStatePtr->resultReady = true;
         sharedStatePtr->cvResultReady.notify_one();
     }
@@ -48,7 +62,7 @@ public:
         return Future<T>{*this};
     }
 
-public: // TODO: make private
+private:
     std::shared_ptr<SharedState<T>> sharedStatePtr;
 };
 

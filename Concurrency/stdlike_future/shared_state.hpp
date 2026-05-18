@@ -8,7 +8,7 @@
 #include <cassert>
 
 template <typename T>
-struct SharedState // TODO: make a class
+struct SharedState
 {
     SharedState() = default;
 
@@ -16,7 +16,7 @@ struct SharedState // TODO: make a class
     {
         if (resultReady)
         {
-            using namespace std; // TODO: почему здесь так надо?
+            using namespace std;
             getResult()->~expected<T, std::exception_ptr>();
         }
     }
