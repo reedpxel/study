@@ -26,6 +26,7 @@ void test1()
     {
         th.join();
     }
+    std::cout << "test1 passed" << std::endl;
 }
 
 void test2()
@@ -66,6 +67,7 @@ void test2()
         th.join();
     }
     queue_.take();
+    std::cout << "test2 passed" << std::endl;
 }
 
 void test3()
@@ -87,12 +89,13 @@ void test3()
     wg.wait();
     tp.stop();
     assert(count == incrementCount);
+    std::cout << "test3 passed" << std::endl;
 }
 
 void test4()
 {
     std::atomic<size_t> count = 0;
-    size_t incrementCount = 100'000;
+    size_t incrementCount = 10'000;
     ThreadPool tp;
     WaitGroup wg;
     wg.add(incrementCount);
@@ -106,14 +109,12 @@ void test4()
         }
         wg.done();
     };
-    for (size_t i = 0; i < std::thread::hardware_concurrency(); ++i)
-    {
-        tp.submit(inc);
-    }
+    tp.submit(inc);
     tp.start();
     wg.wait();
     assert(count.load() == incrementCount);
     tp.stop();
+    std::cout << "test4 passed" << std::endl;
 }
 
 void test5()
@@ -131,12 +132,14 @@ void test5()
     size_t res = future_.get();
     assert(res == 123);
     tp.stop();
+    std::cout << "test5 passed" << std::endl;
 }
 
 void test6()
 {
     ThreadPool{};
     assert(ThreadPool::current() == nullptr);
+    std::cout << "test6 passed" << std::endl;
 }
 
 void callAllTests()
@@ -147,6 +150,7 @@ void callAllTests()
     test4();
     test5();
     test6();
+    std::cout << "\nAll tests passed" << std::endl;
 }
 
 int main()

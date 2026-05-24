@@ -4,6 +4,7 @@
 #include <functional>
 #include <cassert>
 #include <exception>
+#include <cstdlib>
 
 #include "execution_context.hpp"
 #include "this_coro.hpp"
