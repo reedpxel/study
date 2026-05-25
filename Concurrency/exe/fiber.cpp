@@ -17,13 +17,8 @@ void Fiber::yield()
     ThisCoro::suspend(&Fiber::self().coro_);
 }
 
-Fiber& Fiber::self()
-{
-    return *self_;
-}
-
 Fiber::Fiber(const std::function<void()>& body)
-        : coro_([&body](Coroutine*) { body(); })
+        : coro_([body](Coroutine*) { body(); })
 {}
 
 void Fiber::resume()
@@ -38,6 +33,11 @@ void Fiber::resume()
     {
         ThreadPool::current()->submit([this] { this->resume(); });
     }
+}
+
+Fiber& Fiber::self()
+{
+    return *self_;
 }
 
 thread_local Fiber* Fiber::self_ = nullptr;

@@ -5,78 +5,42 @@
 
 #include "exe.hpp"
 
-struct F
-{
-    WaitGroup& wg_;
-    const int i_;
-    mutable int count = 0;
-
-    F(WaitGroup& wg, int i)
-            : wg_(wg)
-            , i_(i)
-    {}
-
-    void operator()() const
-    {
-        for (int i = 0; i < 10; ++i)
-        {
-            std::cout << i_;
-        }
-        wg_.done();
-    }
-};
-
 int main()
 {
     ThreadPool tp;
-    WaitGroup wg{4};
     tp.start();
-    for (int i = 0; i < 4; ++i)
+    WaitGroup wg{2 * std::thread::hardware_concurrency()};
+    
+    for (size_t i = 0; i < 2 * std::thread::hardware_concurrency(); ++i)
     {
-        F f{wg, i};
-        Fiber::go(tp, f);
+        Fiber::go(tp, [&wg, i]
+            {
+                for (int j = 0; j < 10; ++j)
+                {
+                    std::cout << i;
+                }
+                wg.done();
+            });
     }
     wg.wait();
     std::cout << std::endl;
-    wg.add(4);
-    Fiber::go(tp, [&wg]
-        {
-            for (int i = 0; i < 10; ++i)
-            {
-                std::cout << 0;
-                Fiber::yield();
-            }
-            wg.done();
-        });
-    Fiber::go(tp, [&wg]
-        {
-            for (int i = 0; i < 10; ++i)
-            {
-                std::cout << 1;
-                Fiber::yield();
-            }
-            wg.done();
-        });
-    Fiber::go(tp, [&wg]
-        {
-            for (int i = 0; i < 10; ++i)
-            {
-                std::cout << 2;
-                Fiber::yield();
-            }
-            wg.done();
-        });
-    Fiber::go(tp, [&wg]
-        {
-            for (int i = 0; i < 10; ++i)
-            {
-                std::cout << 3;
-                Fiber::yield();
-            }
-            wg.done();
-        });
 
+    wg.add(2 * std::thread::hardware_concurrency());
+    for (size_t i = 0; i < 2 * std::thread::hardware_concurrency(); ++i)
+    {
+        Fiber::go(tp, [&wg, i]
+            {
+                for (int j = 0; j < 10; ++j)
+                {
+                    std::cout << i;
+                    Fiber::yield();
+                }
+                wg.done();
+            });
+    }
     wg.wait();
+    std::cout << std::endl;
+
     tp.stop();
 }
 
