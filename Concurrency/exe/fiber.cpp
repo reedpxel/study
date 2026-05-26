@@ -1,15 +1,17 @@
 #include "fiber.hpp"
 
-void Fiber::go(Scheduler& scheduler, const std::function<void()>& body)
+void Fiber::go(IScheduler& scheduler, const Task& body)
 {
-    Fiber* fiber = new Fiber{body};
+    // TODO: wrap new/delete this in shared_ptr
+    Fiber* fiber = new Fiber{scheduler, body};
     scheduler.submit([fiber] { fiber->resume(); });
 }
 
 void Fiber::go(const std::function<void()>& body)
 {
-    Fiber* fiber = new Fiber{body};
-    Scheduler::current()->submit([fiber] { fiber->resume(); });
+    IScheduler& currentScheduler = Fiber::self().scheduler_;
+    Fiber* fiber = new Fiber{currentScheduler, body};
+    currentScheduler.submit([fiber] { fiber->resume(); });
 }
 
 void Fiber::yield()
@@ -17,8 +19,9 @@ void Fiber::yield()
     ThisCoro::suspend(&Fiber::self().coro_);
 }
 
-Fiber::Fiber(const std::function<void()>& body)
-        : coro_([body](Coroutine*) { body(); })
+Fiber::Fiber(IScheduler& scheduler, const std::function<void()>& body)
+        : scheduler_(scheduler)
+        , coro_([body](Coroutine*) { body(); })
 {}
 
 void Fiber::resume()
@@ -31,7 +34,7 @@ void Fiber::resume()
     } 
     else
     {
-        ThreadPool::current()->submit([this] { this->resume(); });
+        scheduler_.submit([this] { this->resume(); });
     }
 }
 

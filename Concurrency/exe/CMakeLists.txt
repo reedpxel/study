@@ -6,11 +6,17 @@ add_compile_options(-Wall -Wextra -Wpedantic -Werror -g)
 add_definitions(${GCC_compile_flags})
 
 file (GLOB SOURCES
-    ../thread_pool/thread_pool.hpp
-    ../thread_pool/thread_pool.cpp
-    ../thread_pool/blocking_queue.hpp
-    ../thread_pool/wait_group.hpp
-    ../thread_pool/wait_group.cpp
+    schedulers/i_scheduler.hpp
+    schedulers/manual_loop/manual_loop.hpp
+    schedulers/manual_loop/manual_loop.cpp
+    schedulers/thread_pool/thread_pool.hpp
+    schedulers/thread_pool/thread_pool.cpp
+    schedulers/thread_pool/blocking_queue.hpp
+
+    utils/wait_group.hpp
+    utils/wait_group.cpp
+    utils/utils.hpp
+    utils/utils.cpp
 
     ../coroutine/execution_context.hpp
     ../coroutine/execution_context.cpp

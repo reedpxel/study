@@ -3,20 +3,18 @@
 
 #include <vector>
 #include <cassert>
-#include <functional>
 
 #include "blocking_queue.hpp"
+#include "../i_scheduler.hpp"
 
-class ThreadPool
+class ThreadPool : public IScheduler
 {
-    using Task = std::function<void()>;
-
 public:
     explicit ThreadPool(size_t workerCount = 
         std::thread::hardware_concurrency());
     ThreadPool(const ThreadPool&) = delete;
     ThreadPool& operator=(const ThreadPool&) = delete;
-    ~ThreadPool();
+    ~ThreadPool() override;
 
     /*
      * Starts executing tasks, submitted in thread pool. Must be called 0 or 1
@@ -32,7 +30,7 @@ public:
      * not receive arguments, promise-future pairs should be used to return
      * values from tasks.
      */
-    void submit(const Task& task) noexcept;
+    void submit(const Task& task) noexcept override;
 
     /*
      * Stops receiving tasks. A precondition for stop() call is the absence of 
