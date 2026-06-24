@@ -1,6 +1,9 @@
 #include <mutex>
 #include <condition_variable>
 
+namespace exe::thread
+{
+
 class WaitGroup
 {
 public:
@@ -14,4 +17,6 @@ private:
     std::condition_variable countIsZero;
     std::mutex mutex_;
 };
+
+} // namespace exe::thread
 

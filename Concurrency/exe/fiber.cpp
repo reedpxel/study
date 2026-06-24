@@ -1,5 +1,8 @@
 #include "fiber.hpp"
 
+namespace exe
+{
+
 void Fiber::go(IScheduler& scheduler, const Task& body)
 {
     // TODO: wrap new/delete this in shared_ptr
@@ -44,4 +47,6 @@ Fiber& Fiber::self()
 }
 
 thread_local Fiber* Fiber::self_ = nullptr;
+
+} // namespace exe
 
