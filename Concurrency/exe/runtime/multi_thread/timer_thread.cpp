@@ -3,8 +3,10 @@
 namespace exe::runtime::multi_thread
 {
 
-TimerThread::TimerThread(task::IScheduler* taskScheduler)
+TimerThread::TimerThread(task::IScheduler* taskScheduler,
+    UnboundedBlockingMPMCQueue<TimerThread*>* timerThreadQueue)
         : taskScheduler(taskScheduler)
+        , timerThreadQueue_(timerThreadQueue)
         , thread_{}
         , handler_{}
         , threadRoutine{}
@@ -18,8 +20,13 @@ void TimerThread::set(timer::Duration delay, timer::Handler handler)
     threadRoutine = [this]
     {
         std::this_thread::sleep_for(delay_);
-        taskScheduler->submit(handler_);
+        taskScheduler->submit([this] 
+        { 
+            handler_();
+            stop();
+        });
     };
+    timerThreadQueue_->put(this);
 }
 
 void TimerThread::start()
@@ -30,6 +37,7 @@ void TimerThread::start()
 
 void TimerThread::stop()
 {
+    delete this;
 }
 
 } // namespace exe::runtime::multi_thread

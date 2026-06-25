@@ -23,8 +23,7 @@ public:
 
     operator View()
     {
-        TimerThread* tt = new TimerThread{&tp};
-        timerThreadQueue.put(tt);
+        TimerThread* tt = new TimerThread{&tp, &timerThreadQueue};
         return View(&tp, tt);
     }
 

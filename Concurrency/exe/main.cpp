@@ -10,24 +10,56 @@ using namespace exe;
 
 int main()
 {
-    runtime::MultiThread mt{8};
+    runtime::MultiThread mt;
     mt.withTimers().start();
-    while (true)
+    std::cout << mt.here() << std::endl;
+    thread::WaitGroup wg{1};
+    runtime::setTimer(mt, std::chrono::milliseconds{1}, [&wg, &mt] 
     {
-        thread::WaitGroup wg{1};
-        auto t1 = std::chrono::high_resolution_clock::now();
-        runtime::setTimer(mt, std::chrono::milliseconds{500}, [&wg] 
-        {
-            wg.done();
-        });
-        wg.wait();
-        auto t2 = std::chrono::high_resolution_clock::now();
-        auto res = std::chrono::duration_cast<std::chrono::microseconds>(
-            t2 - t1);
-        std::cout << res.count() << " us\n";
-    }
+        std::cout << mt.here() << std::endl;
+        wg.done();
+    });
+    wg.wait();
     mt.stop();
 }
+
+//int main()
+//{
+//    runtime::Sandbox sandbox;
+//    for (int i = 0; i < 5; ++i)
+//    {
+//        runtime::setTimer(sandbox, std::chrono::seconds{i}, [i]
+//        {
+//            std::cout << i << std::endl;
+//        });
+//    }
+//    std::cout << sandbox.advanceClockBy(std::chrono::seconds{5}) << std::endl;
+//    sandbox.runTasks();
+//}
+
+//int main()
+//{
+//    int* x = nullptr;
+//    std::cout << &x << std::endl;
+//    std::cout << std::thread::hardware_concurrency() << std::endl;
+//    runtime::MultiThread mt;
+//    mt.withTimers().start();
+//    while (true)
+//    {
+//        thread::WaitGroup wg{1};
+//        auto t1 = std::chrono::high_resolution_clock::now();
+//        runtime::setTimer(mt, std::chrono::milliseconds{1000}, [&wg] 
+//        {
+//            wg.done();
+//        });
+//        wg.wait();
+//        auto t2 = std::chrono::high_resolution_clock::now();
+//        auto res = std::chrono::duration_cast<std::chrono::microseconds>(
+//            t2 - t1);
+//        std::cout << res.count() << " us\n";
+//    }
+//    mt.stop();
+//}
 
 //void test1()
 //{

@@ -1,10 +1,13 @@
 #include "manual_loop.hpp"
 
+namespace exe::runtime::sandbox
+{
+
 ManualLoop::ManualLoop() {}
 
 ManualLoop::~ManualLoop() {}
 
-void ManualLoop::submit(const Task& task)
+void ManualLoop::submit(task::Task task)
 {
     taskQueue.push_back(task);
 }
@@ -54,4 +57,6 @@ bool ManualLoop::empty()
 {
     return taskQueue.empty();
 }
+
+} // namespace exe::runtime::sandbox
 

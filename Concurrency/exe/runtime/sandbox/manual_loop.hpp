@@ -1,16 +1,18 @@
-#ifndef MANUAL_LOOP_H
-#define MANUAL_LOOP_H
+#pragma once
 
 #include <deque>
 #include <exception>
 
-#include "../i_scheduler.hpp"
+#include "runtime/task/scheduler.hpp"
+
+namespace exe::runtime::sandbox
+{
 
 /*
  * Executes received tasks in one thread. Since all tasks are executed in one
  * thread, no synchronization primitives required
  */
-class ManualLoop : public IScheduler
+class ManualLoop : public task::IScheduler
 {
 public:
     ManualLoop();
@@ -19,15 +21,15 @@ public:
     ManualLoop(const ManualLoop&) = delete;
     ManualLoop& operator=(const ManualLoop&) = delete;
 
-    void submit(const Task& task) override;
+    void submit(task::Task task) override;
 
     size_t runAtMostTasks(size_t tasks);
     size_t runTasks();
     bool runNextTask();
     bool empty();
 private:
-    std::deque<Task> taskQueue;
+    std::deque<task::Task> taskQueue;
 };
 
-#endif // MANUAL_LOOP_H
+} // namespace exe::runtime::sandbox
 

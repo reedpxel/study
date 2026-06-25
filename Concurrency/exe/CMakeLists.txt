@@ -3,6 +3,8 @@ project(exe VERSION 1.0.0 LANGUAGES ASM C CXX)
 set(CMAKE_CXX_STANDARD 23)
 
 add_compile_options(-Wall -Wextra -Wpedantic -Werror -g)
+add_compile_options(-fsanitize=address,undefined,leak)
+add_link_options(-fsanitize=address,undefined,leak)
 add_definitions(${GCC_compile_flags})
 
 include_directories(${PROJECT_SOURCE_DIR})
@@ -14,9 +16,16 @@ file (GLOB SOURCES
     runtime/multi_thread/thread_pool.hpp
     runtime/multi_thread/timer_thread.cpp
     runtime/multi_thread/timer_thread.hpp
-
     runtime/multi_thread.hpp
-    runtime/sandbox/*
+
+    runtime/sandbox/clock.hpp
+    runtime/sandbox/manual_loop.cpp
+    runtime/sandbox/manual_loop.hpp
+    runtime/sandbox/runtime.cpp
+    runtime/sandbox/runtime.hpp
+    runtime/sandbox/timer_queue.hpp
+    runtime/sandbox.hpp
+
     runtime/set_timer.hpp
     runtime/submit_task.hpp
     
