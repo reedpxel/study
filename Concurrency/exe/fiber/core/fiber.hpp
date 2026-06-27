@@ -3,9 +3,12 @@
 #include <chrono>
 
 #include "runtime/task/scheduler.hpp"
+#include "runtime/timer/scheduler.hpp"
 #include "../coroutine/coroutine.hpp"
 #include "fiber/core/body.hpp"
 #include "runtime/view.hpp"
+#include "runtime/submit_task.hpp"
+#include "runtime/set_timer.hpp"
 
 namespace exe::fiber
 {
@@ -18,13 +21,14 @@ class Fiber
     friend void yield();
 
 private:
-    Fiber(runtime::task::IScheduler& scheduler, Body body);
+    Fiber(runtime::View& view, Body body);
     void resume();
     static Fiber& self();
 
 private:
-    runtime::task::IScheduler& scheduler_;
+    runtime::View view_;
     Coroutine coro_;
+    std::chrono::milliseconds delayBeforeResume;
 
 private:
     static thread_local Fiber* self_;

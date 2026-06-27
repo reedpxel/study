@@ -7,7 +7,7 @@ namespace exe::thread
 class WaitGroup
 {
 public:
-    WaitGroup(size_t count = 0);
+    WaitGroup(size_t count = 1);
     void add(size_t addToCount = 1);
     void done();
     void wait();

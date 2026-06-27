@@ -17,7 +17,10 @@ TimerThread::TimerThread(task::IScheduler* taskScheduler)
                 }
                 try
                 {
-                    task.value()();
+                    std::thread{[task = std::move(task)] 
+                    {
+                        task.value()(); 
+                    }}.detach();
                 }
                 catch (...)
                 {

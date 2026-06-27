@@ -3,7 +3,7 @@
 namespace exe::thread
 {
 
-WaitGroup::WaitGroup(size_t count /*= 0*/)
+WaitGroup::WaitGroup(size_t count /*= 1*/)
         : count_(count)
 {}
 

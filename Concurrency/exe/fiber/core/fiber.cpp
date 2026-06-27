@@ -3,9 +3,10 @@
 namespace exe::fiber
 {
 
-Fiber::Fiber(runtime::task::IScheduler& scheduler, Body body)
-        : scheduler_(scheduler)
+Fiber::Fiber(runtime::View& view, Body body)
+        : view_(view)
         , coro_([body = std::move(body)](Coroutine*) { body(); })
+        , delayBeforeResume{0}
 {}
 
 void Fiber::resume()
@@ -15,10 +16,14 @@ void Fiber::resume()
     if (coro_.isDone())
     {
         delete this;
-    } 
+    }
+    else if (delayBeforeResume != std::chrono::milliseconds{0})
+    {
+        runtime::setTimer(view_, delayBeforeResume, [this] { resume(); });
+    }
     else
     {
-        scheduler_.submit([this] { this->resume(); });
+        runtime::submitTask(view_, [this] { resume(); });
     }
 }
 

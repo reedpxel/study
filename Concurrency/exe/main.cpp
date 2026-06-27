@@ -10,27 +10,69 @@ using namespace exe;
 
 int main()
 {
-    runtime::MultiThread mt{8};
-    mt.start();
-    thread::WaitGroup wg{8};
-
-    for (int i = 0; i < 8; ++i)
+    runtime::Sandbox sandbox;
+    std::string str;
+    fiber::go(sandbox, [&str]
     {
-        fiber::go(mt, [&wg, i]
+        for (int i = 0; ; ++i)
         {
-            for (int j = 0; j < 10; ++j)
-            {
-                std::cout << i;
-                fiber::yield();
-            }
-            wg.done();
-        });
+            str.push_back(i + '0');
+            fiber::sleepFor(std::chrono::seconds{1});
+        }
+    });
+    for (int i = 0; i < 5; ++i)
+    {
+        sandbox.runNextTask();
+        sandbox.advanceClockBy(std::chrono::seconds{1});
     }
-    wg.wait();
-    std::cout << std::endl;
-
-    mt.stop();
+    assert(str == "01234");
+    std::cout << "test passed" << std::endl;
 }
+
+//int main()
+//{
+//    runtime::MultiThread mt;
+//    thread::WaitGroup wg{1};
+//    fiber::go(mt, [&wg] 
+//    {
+//        while (true)
+//        {
+//            auto t1 = std::chrono::high_resolution_clock::now();
+//            fiber::sleepFor(std::chrono::milliseconds{400});
+//            auto t2 = std::chrono::high_resolution_clock::now();
+//            auto res = std::chrono::duration_cast<std::chrono::microseconds>(
+//                t2 - t1);
+//            std::cout << res.count() << " ms" << std::endl;
+//        }
+//    });
+//    mt.withTimers().start();
+//    wg.wait();
+//    mt.stop();
+//}
+
+//int main()
+//{
+//    runtime::MultiThread mt{8};
+//    mt.start();
+//    thread::WaitGroup wg{8};
+//
+//    for (int i = 0; i < 8; ++i)
+//    {
+//        fiber::go(mt, [&wg, i]
+//        {
+//            for (int j = 0; j < 10; ++j)
+//            {
+//                std::cout << i;
+//                fiber::yield();
+//            }
+//            wg.done();
+//        });
+//    }
+//    wg.wait();
+//    std::cout << std::endl;
+//
+//    mt.stop();
+//}
 
 //int main()
 //{
@@ -72,7 +114,7 @@ int main()
 //    {
 //        thread::WaitGroup wg{1};
 //        auto t1 = std::chrono::high_resolution_clock::now();
-//        runtime::setTimer(mt, std::chrono::milliseconds{1000}, [&wg] 
+//        runtime::setTimer(mt, std::chrono::milliseconds{400}, [&wg] 
 //        {
 //            wg.done();
 //        });
