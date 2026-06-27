@@ -49,17 +49,16 @@ file (GLOB SOURCES
     ../coroutine/coroutine.cpp
     ../coroutine/this_coro.hpp
     ../coroutine/this_coro.cpp
- 
-    multi_thread.hpp
-    set_timer.hpp
-    submit_task.hpp
-    view.hpp
+
+    fiber/core/body.hpp
+    fiber/core/fiber.cpp
+    fiber/core/fiber.hpp
+    fiber/sched/sched.cpp
+    fiber/sched/sched.hpp
 
     thread/wait_group.hpp
     thread/wait_group.cpp
   
-    fiber.hpp
-    fiber.cpp
     exe.hpp
     main.cpp
 )

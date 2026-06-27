@@ -3,41 +3,50 @@
 namespace exe::runtime::multi_thread
 {
 
-TimerThread::TimerThread(task::IScheduler* taskScheduler,
-    UnboundedBlockingMPMCQueue<TimerThread*>* timerThreadQueue)
-        : taskScheduler(taskScheduler)
-        , timerThreadQueue_(timerThreadQueue)
-        , thread_{}
-        , handler_{}
-        , threadRoutine{}
-        , delay_{}
+TimerThread::TimerThread(task::IScheduler* taskScheduler)
+        : taskScheduler_(taskScheduler)
+        , timerStartingThread{}
+        , timerThreadRoutine([this] 
+        {
+            while (!stopped)
+            {
+                std::optional<std::function<void()>> task = timerQueue.take();
+                if (task == std::nullopt)
+                {
+                    return;
+                }
+                try
+                {
+                    task.value()();
+                }
+                catch (...)
+                {
+                    std::terminate();
+                }
+            }
+        })
+        , timerQueue{}
+        , stopped(false)
 {}
 
 void TimerThread::set(timer::Duration delay, timer::Handler handler)
 {
-    delay_ = delay;
-    handler_ = std::move(handler);
-    threadRoutine = [this]
+    timerQueue.put([this, delay, handler = std::move(handler)] 
     {
-        std::this_thread::sleep_for(delay_);
-        taskScheduler->submit([this] 
-        { 
-            handler_();
-            stop();
-        });
-    };
-    timerThreadQueue_->put(this);
+        std::this_thread::sleep_for(delay);
+        taskScheduler_->submit(handler);
+    });
 }
 
 void TimerThread::start()
 {
-    thread_ = std::move(std::thread{threadRoutine});
-    thread_.detach();
+    timerStartingThread = std::move(std::thread{timerThreadRoutine});
 }
 
 void TimerThread::stop()
 {
-    delete this;
+    timerQueue.close();
+    timerStartingThread.detach();
 }
 
 } // namespace exe::runtime::multi_thread

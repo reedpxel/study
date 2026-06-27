@@ -23,8 +23,7 @@ public:
 
     operator View()
     {
-        TimerThread* tt = new TimerThread{&tp, &timerThreadQueue};
-        return View(&tp, tt);
+        return View{&threadPool_, &timerThread_};
     }
 
     Runtime& withTimers();
@@ -33,12 +32,9 @@ public:
     bool here();
 
 private:
-    void timerThreadRoutine();
-
-private:
-    ThreadPool tp;
-    UnboundedBlockingMPMCQueue<TimerThread*> timerThreadQueue;
-    std::thread timerThread;
+    ThreadPool threadPool_;
+    TimerThread timerThread_;
+    bool withTimers_;
 };
 
 } // namespace exe::runtime::multi_thread

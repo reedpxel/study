@@ -10,18 +10,42 @@ using namespace exe;
 
 int main()
 {
-    runtime::MultiThread mt;
-    mt.withTimers().start();
-    std::cout << mt.here() << std::endl;
-    thread::WaitGroup wg{1};
-    runtime::setTimer(mt, std::chrono::milliseconds{1}, [&wg, &mt] 
+    runtime::MultiThread mt{8};
+    mt.start();
+    thread::WaitGroup wg{8};
+
+    for (int i = 0; i < 8; ++i)
     {
-        std::cout << mt.here() << std::endl;
-        wg.done();
-    });
+        fiber::go(mt, [&wg, i]
+        {
+            for (int j = 0; j < 10; ++j)
+            {
+                std::cout << i;
+                fiber::yield();
+            }
+            wg.done();
+        });
+    }
     wg.wait();
+    std::cout << std::endl;
+
     mt.stop();
 }
+
+//int main()
+//{
+//    runtime::MultiThread mt;
+//    mt.withTimers().start();
+//    std::cout << mt.here() << std::endl;
+//    thread::WaitGroup wg{1};
+//    runtime::setTimer(mt, std::chrono::milliseconds{1}, [&wg, &mt] 
+//    {
+//        std::cout << mt.here() << std::endl;
+//        wg.done();
+//    });
+//    wg.wait();
+//    mt.stop();
+//}
 
 //int main()
 //{
@@ -61,15 +85,15 @@ int main()
 //    mt.stop();
 //}
 
-//void test1()
+//int main()
 //{
-//    ThreadPool tp;
-//    tp.start();
-//    WaitGroup wg{2 * std::thread::hardware_concurrency()};
-//    
+//    runtime::MultiThread mt;
+//    mt.start();
+//    thread::WaitGroup wg{2 * std::thread::hardware_concurrency()};
+// 
 //    for (size_t i = 0; i < 2 * std::thread::hardware_concurrency(); ++i)
 //    {
-//        Fiber::go(tp, [&wg, i]
+//        fiber::go(mt, [&wg, i]
 //            {
 //                for (int j = 0; j < 10; ++j)
 //                {
@@ -84,12 +108,12 @@ int main()
 //    wg.add(2 * std::thread::hardware_concurrency());
 //    for (size_t i = 0; i < 2 * std::thread::hardware_concurrency(); ++i)
 //    {
-//        Fiber::go(tp, [&wg, i]
+//        fiber::go(mt, [&wg, i]
 //            {
 //                for (int j = 0; j < 10; ++j)
 //                {
 //                    std::cout << i;
-//                    Fiber::yield();
+//                    fiber::yield();
 //                }
 //                wg.done();
 //            });
@@ -97,60 +121,61 @@ int main()
 //    wg.wait();
 //    std::cout << std::endl;
 //
-//    tp.stop();
+//    mt.stop();
 //}
-//
-//void manualLoopUnitTest1()
+
+//int main()
 //{
-//    ManualLoop ml;
-//    assert(ml.empty());
+//    runtime::Sandbox sandbox;
+//    assert(sandbox.empty());
 //    std::string str;
-//    utils::submitTask(ml, [&str] 
+//    fiber::go(sandbox, [&str] 
 //        {
 //            str.push_back('2');
-//            Fiber::yield();
+//            fiber::yield();
 //            str.push_back('4');
 //        });
-//    assert(!ml.empty());
-//    utils::submitTask(ml, [&str] 
+//    assert(!sandbox.empty());
+//    fiber::go(sandbox, [&str] 
 //        {
 //            str.push_back('3');
-//            Fiber::yield();
+//            fiber::yield();
 //            str.push_back('5');
 //        });
 //    str.push_back('1');
-//    ml.runTasks();
-//    assert(ml.empty());
+//    sandbox.runTasks();
+//    assert(sandbox.empty());
 //    str.push_back('6');
 //    assert(str == "123456");
-//    std::cout << "manualLoopUnitTest passed" << std::endl;
+//    std::cout << "test passed" << std::endl; 
 //}
-//
-//void manualLoopUnitTest2()
+
+//int main()
 //{
-//    ManualLoop ml;
+//    runtime::Sandbox sandbox;
 //    std::vector<int> odds, evens;
-//    utils::submitTask(ml, [&evens] 
+//    fiber::go(sandbox, [&evens] 
+//    {
+//        for (int i = 0; ; i += 2)
 //        {
-//            for (int i = 0; ; i += 2)
-//            {
-//                evens.push_back(i);
-//                Fiber::yield();
-//            }
-//        });
-//    utils::submitTask(ml, [&odds] 
+//            evens.push_back(i);
+//            fiber::yield();
+//        }
+//    });
+//    fiber::go(sandbox, [&odds] 
+//    {
+//        for (int i = 1; ; i += 2)
 //        {
-//            for (int i = 1; ; i += 2)
-//            {
-//                odds.push_back(i);
-//                Fiber::yield();
-//            }
-//        });
-//    ml.runAtMostTasks(2);
+//            odds.push_back(i);
+//            fiber::yield();
+//        }
+//    });
+//
+//    sandbox.runAtMostTasks(2);
 //    assert(odds.size() == 1 && odds.front() == 1);
 //    assert(evens.size() == 1 && evens.front() == 0);
-//    assert(!ml.empty());
-//    ml.runAtMostTasks(8);
+//    assert(!sandbox.empty());
+//    sandbox.runAtMostTasks(8);
 //    assert(odds.size() == 5 && odds.front() == 1);
 //    assert(evens.size() == 5 && evens.front() == 0);
 //    for (size_t i = 1; i < odds.size(); ++i)
@@ -158,19 +183,7 @@ int main()
 //        assert(odds[i] == odds[i - 1] + 2);
 //        assert(evens[i] == evens[i - 1] + 2);
 //    }
-//    assert(!ml.empty());
-//    std::cout << "manualLoopUnitTest2 passed" << std::endl;
-//}
-//
-//void runAllTests()
-//{
-//    test1();
-//    manualLoopUnitTest1();
-//    manualLoopUnitTest2();
-//}
-//
-//int main()
-//{
-//    runAllTests();
+//    assert(!sandbox.empty());
+//    std::cout << "test passed" << std::endl;
 //}
 //
